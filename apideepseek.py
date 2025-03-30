@@ -1,6 +1,4 @@
-from sys import exception
 import requests
-from requests.api import request
 
 def getApiDeepSeek(input_user, API_KEY, API_URL):
 
