@@ -33,7 +33,7 @@ def use_get_api_llm(message, user_text, reset_history=False):
             ]
         else:       
             # Add history
-            conversation_histories[key].append({"role": "user", "content": message.text})
+            conversation_histories[key].append({"role": "user", "content": user_text})
         
         # Get answer
         answer_api = api_llm.get_api_llm(conversation_histories[key], API_KEY, API_URL)
@@ -51,7 +51,8 @@ def use_get_api_llm(message, user_text, reset_history=False):
         bot.reply_to(message, "❌ Internal error. Try later.")
 
 def setup_bot_handlers():
-    bot_user_id = bot.get_me().id  #Bot ID to detect answer
+     #Bot ID to detect answer
+    bot_user_id = bot.get_me().id 
 
     # Config commands
     bot.set_my_commands([
