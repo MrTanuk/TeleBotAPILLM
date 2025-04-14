@@ -69,7 +69,7 @@ def setup_bot_handlers():
     def handle_ask_command_group(message):
 
         # Extract question
-        question = message.text.split(maxsplit=1)[1].strip() if len(message.text.split()) > 1 else None
+        question = message.text.replace(f'@{BOT_NAME}', '').replace('/ask', '').strip()
         if not question:
             return bot.reply_to(message, "❌ Use: /ask [your question]")
 
@@ -97,7 +97,7 @@ def setup_bot_handlers():
             "/new - Reload the conversation history\n"
             "/help - Show help"
         )
-        bot.send_message(message.chat.id, help_text, parse_mode="Markdown")
+        bot.reply_to(message, help_text, parse_mode="Markdown")
 
 # handlers config
 setup_bot_handlers()
