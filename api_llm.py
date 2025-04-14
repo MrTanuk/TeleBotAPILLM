@@ -1,6 +1,12 @@
+import os
 import requests
+from dotenv import load_dotenv
 
-def getApiDeepSeek(input_user, API_KEY, API_URL):
+load_dotenv()
+
+LLM_MODEL = os.getenv("LLM_MODEL")
+
+def get_api_llm(input_user, API_KEY, API_URL):
 
     # Define the headers for the API request
     headers = {
@@ -10,12 +16,12 @@ def getApiDeepSeek(input_user, API_KEY, API_URL):
 
     # Define the request payload (data)
     data = {
-    "model": "deepseek/deepseek-chat:free",
+    "model": LLM_MODEL,
     "messages": [{"role": "user", "content": input_user}]
     }
 
     try:
-        # Send the POST request to the DeepSeek API
+        # Send the POST request to the API LLM
         response = requests.post(API_URL, json=data, headers=headers)
         response.raise_for_status()
         return response.json()
