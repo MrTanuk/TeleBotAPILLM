@@ -1,46 +1,127 @@
 import os
 from dotenv import load_dotenv
 import telebot
-import apideepseek
+import api_llm
+from flask import Flask, request
 
+# ========== Initial configuration ==========
+app = Flask(__name__)
+conversation_histories = {}  # Save the history
+SYSTEM_MESSAGE = "You are a professional telegram bot to help people"
+
+# ========== Bot config ==========
 load_dotenv()
 
-BOT_TOKEN = str(os.getenv("BOT_TOKEN"))
-BOT_NAME  = str(os.getenv("BOT_NAME"))
-API_KEY   = str(os.getenv("DEEP_SEEK_TOKEN"))
-API_URL   = str(os.getenv("API_URL"))
+BOT_TOKEN = os.getenv("BOT_TOKEN")
+BOT_NAME = os.getenv("BOT_NAME")
+API_KEY = os.getenv("API_TOKEN")
+API_URL = os.getenv("API_URL")
+WEBHOOK_URL = os.getenv("WEBHOOK_URL")
 
 bot = telebot.TeleBot(BOT_TOKEN)
-bot.set_my_commands([
-    telebot.types.BotCommand("/help", "Show all the commands"),
-    telebot.types.BotCommand("/ask", "Ask anything you want to get information"),
-])
 
-@bot.message_handler(commands=["ask", f"ask@{BOT_NAME}"], chat_types=["private", "group", "supergroup"])
-def chat_tanuk(message):
-    bot.send_chat_action(message.chat.id, "typing")
+def use_get_api_llm(message, user_text, reset_history=False):
+    try:
+        bot.send_chat_action(message.chat.id, "typing")
+        key = (message.chat.id, message.from_user.id)
+
+        # Create unique key per chat-user
+        if reset_history or key not in conversation_histories:
+            conversation_histories[key] = [
+                {"role": "system", "content": SYSTEM_MESSAGE},
+                {"role": "user", "content": user_text}
+            ]
+        else:       
+            # Add history
+            conversation_histories[key].append({"role": "user", "content": message.text})
+        
+        # Get answer
+        answer_api = api_llm.get_api_llm(conversation_histories[key], API_KEY, API_URL)
+        
+        if not answer_api.get("error"):
+            content = answer_api["choices"][0]["message"]["content"]
+            conversation_histories[key].append({"role": "assistant", "content": content})
+            bot.reply_to(message, content, parse_mode="markdown")
+        else:
+            error_msg = answer_api.get('error', {}).get('message', 'Error desconocido')
+            bot.reply_to(message, f"❌ Error API: {error_msg}")
     
-    # return a json
-    answer_api = apideepseek.getApiDeepSeek(message.text, API_KEY, API_URL)
-    content = str()
+    except Exception as e:
+        print(f"Error en /ask: {str(e)}")
+        bot.reply_to(message, "❌ Internal error. Try later.")
 
-    if not "error" in answer_api:
-        # Parsing the information of the user input 
-        content = answer_api["choices"][0]["message"]["content"]
+def setup_bot_handlers():
+    bot_user_id = bot.get_me().id  #Bot ID to detect answer
+
+    # Config commands
+    bot.set_my_commands([
+        telebot.types.BotCommand("/help", "Show all commands"),
+        telebot.types.BotCommand("/ask", "Ask something"),
+        telebot.types.BotCommand("/new", "Reload the conversation"),
+    ])
+    
+    @bot.message_handler(chat_types=["private"], content_types=["text"])
+    def handle_ask_command_private(message):
+        use_get_api_llm(message, message.text)
+
+    # Handler to /ask in group
+    @bot.message_handler(commands=["ask", f"ask@{BOT_NAME}"], chat_types=["group", "supergroup"], content_types=["text"])
+    def handle_ask_command_group(message):
+
+        # Extract question
+        question = message.text.split(maxsplit=1)[1].strip() if len(message.text.split()) > 1 else None
+        if not question:
+            return bot.reply_to(message, "❌ Use: /ask [your question]")
+
+        use_get_api_llm(message, question, reset_history=True)
+            
+    # handler to answer to message's bot
+    @bot.message_handler(func=lambda m: m.reply_to_message and m.reply_to_message.from_user.id == bot_user_id, content_types=["text"])
+    def handle_reply(message):
+        use_get_api_llm(message, message.text)
+
+    # Handler to /new (clear history)
+    @bot.message_handler(commands=["new", f"new@{BOT_NAME}"])
+    def clear_history(message):
+        key = (message.chat.id, message.from_user.id)
+        if key in conversation_histories:
+            del conversation_histories[key]
+        bot.reply_to(message, "♻️ Conversation reloaded")
+
+    # Handler to /help
+    @bot.message_handler(commands=["help", f"help@{BOT_NAME}"])
+    def send_help(message):
+        help_text = (
+            "🤖 *Commands available:*\n\n"
+            "/ask [questions] - init the conversation\n"
+            "/new - Reload the conversation history\n"
+            "/help - Show help"
+        )
+        bot.send_message(message.chat.id, help_text, parse_mode="Markdown")
+
+# handlers config
+setup_bot_handlers()
+
+# ========== Flask routes ==========
+@app.route('/')
+def health_check():
+    return "🤖 Bot active", 200
+
+@app.route('/webhook', methods=['POST'])
+def webhook():
+    if request.headers.get('content-type') == 'application/json':
+        json_string = request.get_data().decode('utf-8')
+        update = telebot.types.Update.de_json(json_string)
+        bot.process_new_updates([update])
+        return ''
+    return 'Invalid content type', 403
+
+# ========== Entry point =========
+if __name__ == '__main__':
+    if os.environ.get('RENDER'):
+        from waitress import serve
+        bot.remove_webhook()
+        bot.set_webhook(url=WEBHOOK_URL + '/webhook')
+        serve(app, host='0.0.0.0', port=8080)  # Using waitress on a hosting (Render, for example)
     else:
-        # In case of a problem with API
-        print(answer_api["error"])
-        content = "Request API failed. Try later"
-
-    bot.reply_to(message, content, parse_mode="markdown")
-
-@bot.message_handler(commands=["help", f"help@{BOT_NAME}"], chat_types=["private", "group","supergroup"])
-def send_help(message):
-
-    help_text = """
-    Commands available
-    /ask can ask
-    """
-    bot.send_message(message.chat.id, help_text, parse_mode="HTML")
-
-bot.infinity_polling()
+        app.run(host='0.0.0.0', port=8080, debug=False)
