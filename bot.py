@@ -21,8 +21,6 @@ WEBHOOK_URL = os.getenv("WEBHOOK_URL")
 
 bot = telebot.TeleBot(BOT_TOKEN)
 
-
-
 def setup_bot_handlers():
      #Bot ID to detect answer
     bot_user_id = bot.get_me().id 
