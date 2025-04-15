@@ -42,7 +42,7 @@ def use_get_api_llm(message, user_text, reset_history=False):
         if not answer_api.get("error"):
             content = answer_api["choices"][0]["message"]["content"]
             conversation_histories[key].append({"role": "assistant", "content": content})
-            bot.reply_to(message, content, parse_mode="MarkdownV2")
+            bot.reply_to(message, content, parse_mode="markdown")
         else:
             error_msg = answer_api.get('error', {}).get('message', 'Error desconocido')
             print(error_msg)
