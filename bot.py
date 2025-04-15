@@ -14,63 +14,12 @@ load_dotenv()
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 BOT_NAME = os.getenv("BOT_NAME")
-API_KEY = os.getenv("API_TOKEN")
+API_TOKEN = os.getenv("API_TOKEN")
 API_URL = os.getenv("API_URL")
 LLM_MODEL = os.getenv("LLM_MODEL")
 WEBHOOK_URL = os.getenv("WEBHOOK_URL")
 
 bot = telebot.TeleBot(BOT_TOKEN)
-
-def setup_bot_handlers():
-     #Bot ID to detect answer
-    bot_user_id = bot.get_me().id 
-
-    # Config commands
-    bot.set_my_commands([
-        telebot.types.BotCommand("/help", "Show all commands"),
-        telebot.types.BotCommand("/ask", "Ask something"),
-        telebot.types.BotCommand("/new", "Reload the conversation"),
-    ])
-    
-    @bot.message_handler(chat_types=["private"], content_types=["text"])
-    def handle_ask_command_private(message):
-        use_get_api_llm(message, message.text)
-
-    # Handler to /ask in group
-    @bot.message_handler(commands=["ask", f"ask@{BOT_NAME}"], chat_types=["group", "supergroup"], content_types=["text"])
-    def handle_ask_command_group(message):
-
-        # Extract question
-        question = message.text.replace(f'@{BOT_NAME}', '').replace('/ask', '').strip()
-        if not question:
-            return bot.reply_to(message, "❌ Use: /ask [your question]")
-
-        use_get_api_llm(message, question, reset_history=True)
-            
-    # handler to answer to message's bot
-    @bot.message_handler(func=lambda m: m.reply_to_message and m.reply_to_message.from_user.id == bot_user_id, content_types=["text"])
-    def handle_reply(message):
-        use_get_api_llm(message, message.text)
-
-    # Handler to /new (clear history)
-    @bot.message_handler(commands=["new", f"new@{BOT_NAME}"])
-    def clear_history(message):
-        key = (message.chat.id, message.from_user.id)
-        if key in conversation_histories:
-            del conversation_histories[key]
-        bot.reply_to(message, "♻️ Conversation reloaded")
-
-    # Handler to /help
-    @bot.message_handler(commands=["help", f"help@{BOT_NAME}"])
-    def send_help(message):
-        help_text = (
-            "🤖 *Commands available:*\n\n"
-            "/ask [questions] - init the conversation\n"
-            "/new - Reload the conversation history\n"
-            "/help - Show help"
-        )
-        bot.reply_to(message, help_text, parse_mode="Markdown")
-
 
 def use_get_api_llm(message, user_text, reset_history=False):
     try:
@@ -84,23 +33,77 @@ def use_get_api_llm(message, user_text, reset_history=False):
                 {"role": "user", "content": user_text}
             ]
         else:       
-            # Add history
+            # Add history only to private
             conversation_histories[key].append({"role": "user", "content": user_text})
-        
+            print(conversation_histories)
         # Get answer
-        answer_api = api_llm.get_api_llm(conversation_histories[key], API_KEY, API_URL, LLM_MODEL)
-        
+        answer_api = api_llm.get_api_llm(conversation_histories[key], API_TOKEN, API_URL, LLM_MODEL)
+
         if not answer_api.get("error"):
             content = answer_api["choices"][0]["message"]["content"]
             conversation_histories[key].append({"role": "assistant", "content": content})
-            bot.reply_to(message, content, parse_mode="markdown")
+            bot.reply_to(message, content, parse_mode="MarkdownV2")
         else:
             error_msg = answer_api.get('error', {}).get('message', 'Error desconocido')
-            bot.reply_to(message, f"❌ Error API: {error_msg}")
+            print(error_msg)
+            bot.reply_to(message, f"❌ Server error: {error_msg}")
     
     except Exception as e:
-        print(f"Error en /ask: {str(e)}")
+        print(f"Error: {str(e)}")
         bot.reply_to(message, "❌ Internal error. Try later.")
+
+def setup_bot_handlers():
+    #Bot ID to detect answer
+    bot_user_id = bot.get_me().id 
+
+    # Config commands
+    bot.set_my_commands([
+        telebot.types.BotCommand("/help", "Show all commands"),
+        telebot.types.BotCommand("/ask", "Ask something"),
+        telebot.types.BotCommand("/new", "Reload the conversation"),
+    ])
+
+    # Handler to /help
+    @bot.message_handler(commands=["help", f"help@{BOT_NAME}"], chat_types=["private", "group", "supergroup"])
+    def send_help(message):
+        help_text = (
+            "🤖 *Commands available:* \n\n"
+            "/ask [questions] - init the conversation\n"
+            "/new - Reload the conversation history\n"
+            "/help - Show help"
+        )
+        bot.reply_to(message, help_text, parse_mode="MarkdownV2")
+
+    # Handler to /new (clear history)
+    @bot.message_handler(commands=["new", f"new@{BOT_NAME}"], chat_types=["private", "group", "supergroup"])
+    def clear_history(message):
+        key = (message.chat.id, message.from_user.id)
+        if key in conversation_histories:
+            del conversation_histories[key]
+        bot.reply_to(message, "♻️ Conversation reloaded")
+
+    # Handler to /ask in group
+    @bot.message_handler(commands=["ask", f"ask@{BOT_NAME}"], chat_types=["group", "supergroup"], content_types=["text"])
+    def handle_ask_command_group(message):
+        # Extract command
+        command = message.text.split()[0].strip()
+        # Extract question
+        question = message.text.replace(command, "", 1).strip()
+
+        if not question:
+            return bot.reply_to(message, "❌ Use: /ask [your question]")
+        use_get_api_llm(message, question, reset_history=True)
+            
+    # Handler to /ask in private
+    @bot.message_handler(chat_types=["private"], content_types=["text"])
+    def handle_ask_command_group(message):
+        use_get_api_llm(message, message.text)
+
+    # handler to answer to message's bot
+    @bot.message_handler(func=lambda m: m.reply_to_message and m.reply_to_message.from_user.id == bot_user_id, chat_types=["private"], content_types=["text"])
+    def handle_reply(message):
+        use_get_api_llm(message, message.text)
+
 # handlers config
 setup_bot_handlers()
 
