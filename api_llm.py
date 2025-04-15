@@ -1,12 +1,6 @@
-import os
 import requests
-from dotenv import load_dotenv
 
-load_dotenv()
-
-LLM_MODEL = os.getenv("LLM_MODEL")
-
-def get_api_llm(input_user, API_KEY, API_URL):
+def get_api_llm(input_user, API_KEY, API_URL, LLM_MODEL):
 
     # Define the headers for the API request
     headers = {
