@@ -16,39 +16,12 @@ BOT_TOKEN = os.getenv("BOT_TOKEN")
 BOT_NAME = os.getenv("BOT_NAME")
 API_KEY = os.getenv("API_TOKEN")
 API_URL = os.getenv("API_URL")
+LLM_MODEL = os.getenv("LLM_MODEL")
 WEBHOOK_URL = os.getenv("WEBHOOK_URL")
 
 bot = telebot.TeleBot(BOT_TOKEN)
 
-def use_get_api_llm(message, user_text, reset_history=False):
-    try:
-        bot.send_chat_action(message.chat.id, "typing")
-        key = (message.chat.id, message.from_user.id)
 
-        # Create unique key per chat-user
-        if reset_history or key not in conversation_histories:
-            conversation_histories[key] = [
-                {"role": "system", "content": SYSTEM_MESSAGE},
-                {"role": "user", "content": user_text}
-            ]
-        else:       
-            # Add history
-            conversation_histories[key].append({"role": "user", "content": user_text})
-        
-        # Get answer
-        answer_api = api_llm.get_api_llm(conversation_histories[key], API_KEY, API_URL)
-        
-        if not answer_api.get("error"):
-            content = answer_api["choices"][0]["message"]["content"]
-            conversation_histories[key].append({"role": "assistant", "content": content})
-            bot.reply_to(message, content, parse_mode="markdown")
-        else:
-            error_msg = answer_api.get('error', {}).get('message', 'Error desconocido')
-            bot.reply_to(message, f"❌ Error API: {error_msg}")
-    
-    except Exception as e:
-        print(f"Error en /ask: {str(e)}")
-        bot.reply_to(message, "❌ Internal error. Try later.")
 
 def setup_bot_handlers():
      #Bot ID to detect answer
@@ -100,6 +73,36 @@ def setup_bot_handlers():
         )
         bot.reply_to(message, help_text, parse_mode="Markdown")
 
+
+def use_get_api_llm(message, user_text, reset_history=False):
+    try:
+        bot.send_chat_action(message.chat.id, "typing")
+        key = (message.chat.id, message.from_user.id)
+
+        # Create unique key per chat-user
+        if reset_history or key not in conversation_histories:
+            conversation_histories[key] = [
+                {"role": "system", "content": SYSTEM_MESSAGE},
+                {"role": "user", "content": user_text}
+            ]
+        else:       
+            # Add history
+            conversation_histories[key].append({"role": "user", "content": user_text})
+        
+        # Get answer
+        answer_api = api_llm.get_api_llm(conversation_histories[key], API_KEY, API_URL, LLM_MODEL)
+        
+        if not answer_api.get("error"):
+            content = answer_api["choices"][0]["message"]["content"]
+            conversation_histories[key].append({"role": "assistant", "content": content})
+            bot.reply_to(message, content, parse_mode="markdown")
+        else:
+            error_msg = answer_api.get('error', {}).get('message', 'Error desconocido')
+            bot.reply_to(message, f"❌ Error API: {error_msg}")
+    
+    except Exception as e:
+        print(f"Error en /ask: {str(e)}")
+        bot.reply_to(message, "❌ Internal error. Try later.")
 # handlers config
 setup_bot_handlers()
 
