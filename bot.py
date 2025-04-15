@@ -83,7 +83,7 @@ def setup_bot_handlers():
         bot.reply_to(message, "♻️ Conversation reloaded")
 
     # Handler to /ask in group
-    @bot.message_handler(commands=["ask", f"ask@{BOT_NAME}"], chat_types=["group", "supergroup"], content_types=["text"])
+    @bot.message_handler(commands=["ask", f"ask@{BOT_NAME}"], chat_types=["private", "group", "supergroup"], content_types=["text"])
     def handle_ask_command_group(message):
         # Extract command
         command = message.text.split()[0].strip()
