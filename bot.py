@@ -72,7 +72,7 @@ def setup_bot_handlers():
             "/new - Reload the conversation history\n"
             "/help - Show help"
         )
-        bot.reply_to(message, help_text, parse_mode="MarkdownV2")
+        bot.reply_to(message, help_text, parse_mode="markdown")
 
     # Handler to /new (clear history)
     @bot.message_handler(commands=["new", f"new@{BOT_NAME}"], chat_types=["private", "group", "supergroup"])
