@@ -7,7 +7,7 @@ from flask import Flask, request
 # ========== Initial configuration ==========
 app = Flask(__name__)
 conversation_histories = {}  # Save the history
-SYSTEM_MESSAGE = "You are a professional telegram bot to help people"
+SYSTEM_MESSAGE = "You are a professional telegram bot to help people. Answer very briefly"
 
 # ========== Bot config ==========
 load_dotenv()
