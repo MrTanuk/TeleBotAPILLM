@@ -101,11 +101,11 @@ def webhook():
 # ========== Entry point =========
 
 if __name__ == '__main__':
-    if os.environ.get('HOSTING'):
+    if os.environ.get('RENDER'):
         from waitress import serve
         bot.remove_webhook()
         bot.set_webhook(url=WEBHOOK_URL + '/webhook')
-        serve(app, host='0.0.0.0', port=8080)  # Using waitress on a hosting
+        serve(app, host='0.0.0.0', port=8080)  # Using waitress on a hosting (Render, for example)
     else:
         bot.remove_webhook()
         #app.run(host='0.0.0.0', port=8080, debug=False)
