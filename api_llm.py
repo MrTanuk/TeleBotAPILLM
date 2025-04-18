@@ -1,16 +1,18 @@
 import requests
 
-def get_api_llm(messages, API_TOKEN, API_URL, LLM_MODEL):
+def get_api_llm(messages, API_TOKEN, API_URL, LLM_MODEL,  MAX_OUTPUT_TOKENS=2048):
 
     # Define the headers for the API request
     headers = {
-    'Authorization': f'Bearer {API_TOKEN}', 'Content-Type': 'application/json'
+        'Authorization': f'Bearer {API_TOKEN}', 
+        'Content-Type': 'application/json'
     }
 
     # Define the request payload (data)
     data = {
-    "model": LLM_MODEL,
-    "messages": messages
+        "model": LLM_MODEL,
+        "messages": messages,
+        "max_tokens": MAX_OUTPUT_TOKENS,
     }
 
     try:
