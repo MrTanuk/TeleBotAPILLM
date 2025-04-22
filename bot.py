@@ -1,3 +1,4 @@
+from logging import error
 import os
 from dotenv import load_dotenv
 from flask import Flask, request
@@ -6,16 +7,21 @@ import api_llm
 
 # ========== Initial configuration ==========
 app = Flask(__name__)
-SYSTEM_MESSAGE = "You are a professional telegram bot to help people. Answer very briefly"
+SYSTEM_MESSAGE = "You are a professional telegram bot to help people. Answer briefly"
 
 # ========== Bot config ==========
 load_dotenv()
 
+PROVIDER = "google"
+
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 BOT_NAME = os.getenv("BOT_NAME")
 API_TOKEN = os.getenv("API_TOKEN")
-API_URL = os.getenv("API_URL")
 LLM_MODEL = os.getenv("LLM_MODEL")
+if PROVIDER != "google":
+    API_URL = os.getenv("API_URL")
+else:
+    API_URL = f"{os.getenv('API_URL')}/{str(LLM_MODEL)}:generateContent?key={str(API_TOKEN)}"
 WEBHOOK_URL = os.getenv("WEBHOOK_URL")
 
 bot = telebot.TeleBot(str(BOT_TOKEN))
@@ -23,28 +29,36 @@ bot = telebot.TeleBot(str(BOT_TOKEN))
 def use_get_api_llm(message, user_text):
     try:
         bot.send_chat_action(message.chat.id, "typing")
-
-        MAX_OUTPUT_TOKENS = 500
+        
         messages = [
             {"role": "system", "content": SYSTEM_MESSAGE},
             {"role": "user", "content": user_text}
         ]
+        MAX_OUTPUT_TOKENS = 1024
 
         # Get answer
-        answer_api = api_llm.get_api_llm(messages, API_TOKEN, API_URL, LLM_MODEL, MAX_OUTPUT_TOKENS)
-        print(answer_api)
+        answer_api = api_llm.get_api_llm(messages, API_TOKEN, API_URL, LLM_MODEL, MAX_OUTPUT_TOKENS, PROVIDER)
 
-        if not answer_api.get("error"):
-            content = answer_api["choices"][0]["message"]["content"]
-            bot.reply_to(message, content, parse_mode="markdown")
+        # Get only a string, it's the answer
+        if not isinstance(answer_api, dict):
+            bot.reply_to(message, answer_api, parse_mode="markdown")
         else:
-            error_msg = answer_api.get('error', {}).get('message', 'Unknown error')
+            # Get a dict if there was a problem
+            error_msg = answer_api.get("error")
             print(error_msg)
-            bot.reply_to(message, f"❌ Server error: {error_msg}")
-    
+            bot.reply_to(message, f"❌ Server error. Try later")
+
+    except telebot.apihelper.ApiTelegramException as e:
+        # Respond without markdown in case there was problem with some 
+        if "Can't find end of the entity starting" in str(e):
+            print(e)
+            bot.reply_to(message, answer_api)
+        else:
+            raise e
+
     except Exception as e:
-        print(f"Error: {str(e)}")
-        bot.reply_to(message, "❌ Internal error. Try later.")
+        print(f"error: {str(e)}")
+        bot.reply_to(message, "❌ Internal error. Try again.")
 
 def setup_bot_handlers():
     # Config commands
@@ -107,4 +121,6 @@ if __name__ == '__main__':
         bot.set_webhook(url=WEBHOOK_URL + '/webhook')
         serve(app, host='0.0.0.0', port=8080)
     else:
+        bot.delete_webhook()
+        bot.infinity_polling()
         app.run(host='0.0.0.0', port=8080, debug=False)
