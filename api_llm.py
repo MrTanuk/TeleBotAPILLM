@@ -9,7 +9,7 @@ def parse_response(response, provider):
     else:
         return response
 
-def get_api_llm(messages, API_TOKEN, API_URL, LLM_MODEL, MAX_OUTPUT_TOKENS=2048, provider="openai"):
+def get_api_llm(messages, API_TOKEN, API_URL, LLM_MODEL, MAX_OUTPUT_TOKENS=2048, provider="google"):
     # Provider configuration mapping
     provider_config = {
         "openai": {
