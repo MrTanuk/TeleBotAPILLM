@@ -67,6 +67,10 @@ def setup_bot_handlers():
         telebot.types.BotCommand("/ask", "Ask something"),
     ])
 
+    @bot.message_handler(commands=["start"], chat_types=["private", "group", "supergroup"])
+    def send_start(message):
+        bot.send_message(message.chat.id, "Welcome to Mario Kart... ♪♪")
+
     # Handler to /help
     @bot.message_handler(commands=["help", f"help@{BOT_NAME}"], chat_types=["private", "group", "supergroup"])
     def send_help(message):
