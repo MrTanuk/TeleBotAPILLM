@@ -78,7 +78,7 @@ def setup_bot_handlers():
         bot.reply_to(message, help_text, parse_mode="markdown")
 
     # Handler to /ask in group, private
-    @bot.message_handler(commands=["ask", f"ask@{BOT_NAME}"], chat_types=["private", "group", "supergroup"], content_types=["text"])
+    @bot.message_handler(commands=["ask", f"ask@{BOT_NAME}"], chat_types=[ "group", "supergroup"], content_types=["text"])
     @bot.message_handler(chat_types=["private"], content_types=["text"])
     def handle_all_question(message):
 
