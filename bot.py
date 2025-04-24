@@ -85,6 +85,7 @@ def setup_bot_handlers():
         telebot.types.BotCommand("/start", "Enjoy the bot"),
         telebot.types.BotCommand("/help", "Show all commands"),
         telebot.types.BotCommand("/ask", "Ask something"),
+        telebot.types.BotCommand("Clear", "Clear the historial")
     ])
 
     # Handler to /start
@@ -126,6 +127,16 @@ def setup_bot_handlers():
             use_get_api_llm(message, question, is_group=True)
         else:
             use_get_api_llm(message, question)
+
+    # Handler to /new (clear history)
+    @bot.message_handler(commands=["new", f"new@{BOT_NAME}"], chat_types=["private", "group", "supergroup"])
+    def clear_history(message):
+        key = (message.chat.id, message.from_user.id)
+
+        if key in historial_to_respond:
+            del historial_to_respond[key]
+
+        bot.reply_to(message, "♻️ Conversation reloaded")
 
     # Handler to reply in private, group
     @bot.message_handler(func=lambda m: m.reply_to_message and m.reply_to_message.from_user.id == bot_user_id, chat_types=["private","group", "supergroup"], content_types=["text"])
