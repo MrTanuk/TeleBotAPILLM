@@ -29,6 +29,19 @@ WEBHOOK_URL = os.getenv("WEBHOOK_URL")
 bot = telebot.TeleBot(str(BOT_TOKEN))
 bot_user_id = bot.get_me().id
 
+def extract_question(message):
+    # obtain text from private or group
+    if message.startswith('/'):
+        # Extract command
+        command = message.split()[0].strip()
+        # Extract question
+        question = message.replace(command, "", 1).strip()
+    else:
+        #Only in private
+        question = message.text.strip()
+
+    return question
+
 def use_get_api_llm(message, user_text, is_group=False, is_reply=False):
     try:
         bot.send_chat_action(message.chat.id, "typing")
@@ -97,36 +110,12 @@ def setup_bot_handlers():
     @bot.message_handler(commands=["help", f"help@{BOT_NAME}"], chat_types=["private", "group", "supergroup"])
     def send_help(message):
         help_text = (
-            "🤖 *Commands available:* \n\n"
-            "/start"
-            "/ask [questions] - init the conversation\n\nOptional in private"
+            "🤖 *Commands available:* \n"
+            "/start\n"
+            "/ask [questions] - init the conversation. Optional in private\n"
             "/help - Show help"
         )
         bot.reply_to(message, help_text, parse_mode="markdown")
-
-    # Handler to /ask in private, group
-    @bot.message_handler(commands=["ask", f"ask@{BOT_NAME}"], chat_types=["group", "supergroup"], content_types=["text"])
-    @bot.message_handler(chat_types=["private"], content_types=["text"])
-    def handle_all_question(message):
-
-        if message.text.startswith('/'):
-            # Extract command
-            command = message.text.split()[0].strip()
-            # Extract question
-            # Group, supergroup
-            question = message.text.replace(command, "", 1).strip()
-        else:
-            #Private
-            question = message.text.strip()
-        
-        # Get back if there's no question
-        if not question:
-             return bot.reply_to(message, "❌ Use: /ask [your question]")
-
-        if message.chat.type in ["group", "supergroup"]:
-            use_get_api_llm(message, question, is_group=True)
-        else:
-            use_get_api_llm(message, question)
 
     # Handler to /new (clear history)
     @bot.message_handler(commands=["new", f"new@{BOT_NAME}"], chat_types=["private", "group", "supergroup"])
@@ -137,6 +126,22 @@ def setup_bot_handlers():
             del historial_to_respond[key]
 
         bot.reply_to(message, "♻️ Conversation reloaded")
+
+    # Handler to /ask in private, group
+    @bot.message_handler(commands=["ask", f"ask@{BOT_NAME}"], chat_types=["group", "supergroup"], content_types=["text"])
+    @bot.message_handler(chat_types=["private"], content_types=["text"])
+    def handle_all_question(message):
+
+        question = extract_question(message.text)
+
+        # Get back if there's no question
+        if not question:
+             return bot.reply_to(message, "❌ Use: /ask [your question]")
+
+        if message.chat.type in ["group", "supergroup"]:
+            use_get_api_llm(message, question, is_group=True)
+        else:
+            use_get_api_llm(message, question)
 
     # Handler to reply in private, group
     @bot.message_handler(func=lambda m: m.reply_to_message and m.reply_to_message.from_user.id == bot_user_id, chat_types=["private","group", "supergroup"], content_types=["text"])
