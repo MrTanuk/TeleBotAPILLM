@@ -38,7 +38,7 @@ def extract_question(message):
         question = message.replace(command, "", 1).strip()
     else:
         #Only in private
-        question = message.text.strip()
+        question = message.strip()
 
     return question
 
