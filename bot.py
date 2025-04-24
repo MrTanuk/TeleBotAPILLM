@@ -85,8 +85,8 @@ def setup_bot_handlers():
         telebot.types.BotCommand("/start", "Enjoy the bot"),
         telebot.types.BotCommand("/help", "Show all commands"),
         telebot.types.BotCommand("/ask", "Ask something"),
-        telebot.types.BotCommand("New", "Clear the historial")
-    ])
+        telebot.types.BotCommand("/new", "Clear the historial")
+    ]
 
     # Handler to /start
     @bot.message_handler(commands=["start", f"start@{BOT_NAME}"], chat_types=["private", "group", "supergroup"])
