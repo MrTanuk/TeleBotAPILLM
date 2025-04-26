@@ -78,5 +78,3 @@ def download_video(url):
         raise ValueError(f"❌ Error downloading: {str(e)}")
     except Exception as e:
         raise RuntimeError(f"🚨 Unexpected error during download: {str(e)}") from e
-
-print(download_video("https://youtube.com/shorts/CymgIKvQcwc?si=YBU05IbDCNPXIInk"))
