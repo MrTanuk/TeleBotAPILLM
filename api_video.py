@@ -5,16 +5,16 @@ from yt_dlp import YoutubeDL
 from yt_dlp import DownloadError
 
 def download_video(url):
-    # Allowed domain validation
-    pattern = (
+    # Validación de dominios permitidos
+    patron = (
     r'^(https?://)?(?:www\.)?'
     r'(?:'
-    r'(?:youtube\.com/|youtu\.be/)(?:watch\?v=|shorts/)|'  # YouTube (videos and shorts)
-    r'(?:facebook\.com|fb\.watch)/(?:reel/|watch/|reels/|videos/|share/)|'  # Facebook/Reels
-    r'(?:instagram\.com|instagr\.am)/(?:reel/|reels/|p/)'  # Instagram/Reels videos
+    r'(?:youtube\.com/(watch\?v=|shorts/)|youtu\.be/)|'  # YouTube (videos and shorts)
+    r'(?:facebook\.com|fb\.watch)/(?:reel/|watch/|reels/|videos/|/share/)|'  # Facebook/Reels
+    r'(?:instagram\.com|instagr\.am)/(?:reel/|reels/|p/)'  # Instagram/Reels and posts de video
     r')'
     r'[\w\-]+/?[\w\-?=&]*$')
-    if not re.match(pattern, url, re.IGNORECASE):
+    if not re.match(patron, url, re.IGNORECASE):
         raise IndexError("❌ URL not allowed. Only YouTube, Facebook, and Instagram video links are permitted")
     
     MAX_SIZE_MB = 45
