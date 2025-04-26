@@ -1,10 +1,10 @@
-from logging import error
 import os
+from datetime import datetime, timedelta
 from dotenv import load_dotenv
 from flask import Flask, request
 import telebot
-from telebot.types import ReplyKeyboardMarkup
 import api_llm
+import api_video
 
 # ========== Initial configuration ==========
 app = Flask(__name__)
@@ -13,32 +13,42 @@ SYSTEM_MESSAGE = "You are a professional telegram bot to help people. Answer bri
 # ========== Bot config ==========
 load_dotenv()
 # In a futere, with DB to respond all the answer made by the bot
-historial_to_respond = {}
+response_history = {}
 
-PROVIDER = "google"
+PROVIDER = os.getenv("PROVIDER")
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 BOT_NAME = os.getenv("BOT_NAME")
 API_TOKEN = os.getenv("API_TOKEN")
 LLM_MODEL = os.getenv("LLM_MODEL")
-if PROVIDER != "google":
-    API_URL = os.getenv("API_URL")
-else:
+if PROVIDER == "google":
     API_URL = f"{os.getenv('API_URL')}/{str(LLM_MODEL)}:generateContent?key={str(API_TOKEN)}"
+else:
+    API_URL = os.getenv("API_URL")
 WEBHOOK_URL = os.getenv("WEBHOOK_URL")
 
 bot = telebot.TeleBot(str(BOT_TOKEN))
 bot_user_id = bot.get_me().id
 
-def extract_question(message):
-    # obtain text from private or group
-    if message.startswith('/'):
-        # Extract command
-        command = message.split()[0].strip()
-        # Extract question
-        question = message.replace(command, "", 1).strip()
-    else:
-        #Only in private
-        question = message.strip()
+def extract_question(message, complete_message=True):
+    """Separate the command of the bot and the message made by the user neither private or group"""
+    try:
+        #Parse message from private or group
+        if message.startswith('/'):
+            # Extract command
+            command = message.split()[0].strip()
+            # Extract question to get all complete message
+            if complete_message:
+                question = message.replace(command, "", 1).strip()
+            # Extract only the text is next to the command
+            else:
+                question = message.split()[1].strip()
+        else:
+            #Only in private
+            question = message.strip()
+
+    except IndexError:
+        # if the command needs parameter and user doesn't pass
+        raise IndexError("Parameter not found to the command. Use help to see how to use")
 
     return question
 
@@ -46,51 +56,68 @@ def use_get_api_llm(message, user_text, is_group=False, is_reply=False):
     try:
         bot.send_chat_action(message.chat.id, "typing")
 
-        # If user responds a message without the command, get back
+        # Handle group replies without proper command
         if is_group and is_reply and not message.text.startswith(('/ask', f'/ask@{BOT_NAME}')):
             return
         
-        key = (message.chat.id, message.from_user.id)
+        user_key = (message.chat.id, message.from_user.id)
+        current_time = datetime.utcnow()
 
-        # Create historial to each user
-        if key not in historial_to_respond:
-            historial_to_respond[key] = [
-                {"role": "system", "content": SYSTEM_MESSAGE}
-            ]
-        
-        # Add new message to historial
-        historial_to_respond[key].append({"role": "user", "content": user_text})
-    
-        # Limit history for the last 4 messages
+        # Check if history exists and needs reset
+        if user_key in response_history:
+            history_data = response_history[user_key]
+            
+            # Reset history if last interaction was over 1 hour ago
+            if current_time - history_data['last_active'] > timedelta(hours=1):
+                response_history[user_key] = {
+                    'conversation': [{"role": "system", "content": SYSTEM_MESSAGE}],
+                    'last_active': current_time
+                }
+                bot.send_message(message.chat.id, "🕒 Chat history reset due to 1 hour of inactivity")
+
+        # Initialize new user history if needed
+        if user_key not in response_history:
+            response_history[user_key] = {
+                'conversation': [{"role": "system", "content": SYSTEM_MESSAGE}],
+                'last_active': current_time
+            }
+
+        # Update last activity timestamp
+        response_history[user_key]['last_active'] = current_time
+
+        # Add new user message to history
+        response_history[user_key]['conversation'].append({"role": "user", "content": user_text})
+
+        # Maintain conversation history limit
         MAX_HISTORY = 4
-        historial_to_respond[key] = historial_to_respond[key][-MAX_HISTORY:]
+        response_history[user_key]['conversation'] = response_history[user_key]['conversation'][-MAX_HISTORY:]
 
         MAX_OUTPUT_TOKENS = 1024
 
-        # Get answer
-        answer_api = api_llm.get_api_llm(historial_to_respond[key], API_TOKEN, API_URL, LLM_MODEL, MAX_OUTPUT_TOKENS, PROVIDER)
+        # Generate AI response using current conversation context
+        ai_response = api_llm.get_api_llm(
+            response_history[user_key]['conversation'],
+            API_TOKEN,
+            API_URL,
+            LLM_MODEL,
+            PROVIDER,
+            MAX_OUTPUT_TOKENS
+        )
 
-        # Get only a string, it's the answer
-        if isinstance(answer_api, str):
-            bot.reply_to(message, answer_api, parse_mode="markdown")
-            historial_to_respond[key].append({"role": "assistant", "content": answer_api})
-        else:
-            # Get a dict if there was a problem
-            error_msg = answer_api.get("error")
-            print(error_msg)
-            bot.reply_to(message, f"❌ Server error. Try later")
+        # Send response and update history
+        bot.reply_to(message, ai_response, parse_mode="markdown")
+        response_history[user_key]['conversation'].append({"role": "assistant", "content": ai_response})
 
+    except KeyError as e:
+        bot.reply_to(message, f"Configuration error: {str(e)}")
+    except ConnectionError as e:
+        bot.reply_to(message, f"Network error: {str(e)}")
     except telebot.apihelper.ApiTelegramException as e:
-        # Respond without markdown in case there was problem with some parse
         if "Can't find end of the entity starting" in str(e):
-            print(e)
-            bot.reply_to(message, answer_api)
-        else:
-            raise e
-
+            return bot.reply_to(message, ai_response)
+        raise
     except Exception as e:
-        print(f"error: {str(e)}")
-        bot.reply_to(message, "❌ Internal error. Try again.")
+        bot.reply_to(message, f"Unexpected error: {str(e)}")
 
 def setup_bot_handlers():
     # Config commands
@@ -98,7 +125,8 @@ def setup_bot_handlers():
         telebot.types.BotCommand("/start", "Enjoy the bot"),
         telebot.types.BotCommand("/help", "Show all commands"),
         telebot.types.BotCommand("/ask", "Ask something"),
-        telebot.types.BotCommand("/new", "Clear the historial")
+        telebot.types.BotCommand("/new", "Clear the historial"),
+        telebot.types.BotCommand("/dl", "Download videos from Youtube, Facebook and Instagram")
     ])
 
     # Handler to /start
@@ -112,36 +140,60 @@ def setup_bot_handlers():
         help_text = (
             "🤖 *Commands available:* \n"
             "/start\n"
+            "/help - Show help\n"
             "/ask [questions] - init the conversation. Optional in private\n"
-            "/help - Show help"
+            "/dl [url] - Download video from Youtube, Facebook and Instagram"
         )
         bot.reply_to(message, help_text, parse_mode="markdown")
+    
+    # Handler to /dl (Download video and send to the user)
+    @bot.message_handler(commands=["dl", f"dl@{BOT_NAME}"], chat_types=["private", "group", "supergroup"], content_types=["text"])
+    def send_video(message):
+            try:
+                url = extract_question(message.text, complete_message=False)
+                bot.send_chat_action(message.chat.id, 'upload_video')
+
+                video = api_video.download_video(url)
+                bot.send_video(
+                    chat_id=message.chat.id,
+                    video=video,
+                    reply_to_message_id=message.message_id,
+                    supports_streaming=True
+                )
+
+            except IndexError as e:
+                if "Parameter not found" in str(e):
+                    return bot.reply_to(message, "You must send a command followed by a URL:\n\n/dl https://www.youtube.com/watch?v=...")
+                bot.reply_to(message, str(e))
+
+            except (ValueError, Exception) as ve:
+                bot.reply_to(message, str(ve))
 
     # Handler to /new (clear history)
     @bot.message_handler(commands=["new", f"new@{BOT_NAME}"], chat_types=["private", "group", "supergroup"])
     def clear_history(message):
         key = (message.chat.id, message.from_user.id)
 
-        if key in historial_to_respond:
-            del historial_to_respond[key]
-
+        if key in response_history:
+            del response_history[key]
         bot.reply_to(message, "♻️ Conversation reloaded")
 
     # Handler to /ask in private, group
     @bot.message_handler(commands=["ask", f"ask@{BOT_NAME}"], chat_types=["group", "supergroup"], content_types=["text"])
     @bot.message_handler(chat_types=["private"], content_types=["text"])
     def handle_all_question(message):
+        try:
+            question = extract_question(message.text)
 
-        question = extract_question(message.text)
+            if message.chat.type in ["group", "supergroup"]:
+                use_get_api_llm(message, question, is_group=True)
+            else:
+                use_get_api_llm(message, question)
 
-        # Get back if there's no question
-        if not question:
-             return bot.reply_to(message, "❌ Use: /ask [your question]")
-
-        if message.chat.type in ["group", "supergroup"]:
-            use_get_api_llm(message, question, is_group=True)
-        else:
-            use_get_api_llm(message, question)
+        except IndexError as e:
+            if "Parameter not found" in str(e):
+                return bot.reply_to(message, "Use: /ask [your question]")
+            bot.reply_to(message, str(e))
 
     # Handler to reply in private, group
     @bot.message_handler(func=lambda m: m.reply_to_message and m.reply_to_message.from_user.id == bot_user_id, chat_types=["private","group", "supergroup"], content_types=["text"])
