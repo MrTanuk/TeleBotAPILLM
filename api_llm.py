@@ -1,15 +1,20 @@
 import requests
+from requests.exceptions import RequestException
 
-def parse_response(response, provider):
-    # Analize the anwser according the provider
-    if provider == "openai" or provider == "deepseek":
+def is_env_exist(API_TOKEN, API_URL, LLM_MODEL, PROVIDER):
+    if None in (API_TOKEN, API_URL, LLM_MODEL, PROVIDER):
+        return True
+    return False
+
+def parse_response(response: dict, provider: str) -> str:
+    provider = provider.lower()
+    if provider in ("openai", "deepseek"):
         return response['choices'][0]['message']['content']
     elif provider == "google":
         return response['candidates'][0]['content']['parts'][0]['text']
-    else:
-        return response
+    return str(response)
 
-def get_api_llm(messages, API_TOKEN, API_URL, LLM_MODEL, MAX_OUTPUT_TOKENS=2048, provider="google"):
+def get_api_llm(messages, API_TOKEN, API_URL, LLM_MODEL, PROVIDER, MAX_OUTPUT_TOKENS=2048):
     # Provider configuration mapping
     provider_config = {
         "openai": {
@@ -57,11 +62,14 @@ def get_api_llm(messages, API_TOKEN, API_URL, LLM_MODEL, MAX_OUTPUT_TOKENS=2048,
             }
         }
     }
+    
+    if is_env_exist(API_TOKEN, API_URL, LLM_MODEL, PROVIDER):
+        return "Missing some value of a key. Check it"
 
     try:
-        config = provider_config[provider.lower()]
+        config = provider_config[PROVIDER.lower()]
     except KeyError:
-        return {"error": f"Unsupported provider: {provider}"}
+        raise KeyError(f"❌ Unsupported provider: {PROVIDER}")
 
     try:
         response = requests.post(
@@ -70,9 +78,21 @@ def get_api_llm(messages, API_TOKEN, API_URL, LLM_MODEL, MAX_OUTPUT_TOKENS=2048,
             headers=config["headers"]
         )
         response.raise_for_status()
-        return parse_response(response.json(), provider)
+        return parse_response(response.json(), PROVIDER)
         
-    except requests.exceptions.RequestException as e:
-        return {"error": f"Request error: {str(e)}"}
+    except RequestException as e:
+        status_code = getattr(e.response, 'status_code', None)
+        error_message = f"API request failed"
+        
+        if status_code:
+            error_message += f" (status {status_code})"
+            if status_code == 401:
+                error_message = "❌ Authentication failed: Invalid API token"
+            elif status_code == 429:
+                error_message = "❌ Rate limit exceeded"
+            elif status_code == 404:
+                error_message = "❌ API endpoint not found"
+        
+        raise ConnectionError(f"{error_message}: {str(e)}") from e
     except Exception as e:
-        return {"error": f"Unexpected error: {str(e)}"}
+        raise RuntimeError(f"🚨 Unexpected error: {str(e)}") from e
