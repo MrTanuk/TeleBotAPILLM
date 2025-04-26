@@ -9,9 +9,9 @@ def download_video(url):
     patron = (
     r'^(https?://)?(?:www\.)?'
     r'(?:'
-    r'(?:youtube\.com/(watch\?v=|shorts/)|youtu\.be/)|'  # YouTube (videos and shorts)
+    r'(?:youtube\.com|youtu\.be)/(?:watch\?v=|shorts/)|'   # YouTube (videos and shorts)
     r'(?:facebook\.com|fb\.watch)/(?:reel/|watch/|reels/|videos/|/share/)|'  # Facebook/Reels
-    r'(?:instagram\.com|instagr\.am)/(?:reel/|reels/|p/)'  # Instagram/Reels and posts de video
+    r'(?:instagram\.com|instagr\.am)/(?:reel/|reels/|p/)'  # Instagram/Reels
     r')'
     r'[\w\-]+/?[\w\-?=&]*$')
     if not re.match(patron, url, re.IGNORECASE):
