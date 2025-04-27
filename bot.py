@@ -31,24 +31,19 @@ bot_user_id = bot.get_me().id
 
 def extract_question(message, complete_message=True):
     """Separate the command of the bot and the message made by the user neither private or group"""
-    try:
-        #Parse message from private or group
-        if message.startswith('/'):
-            # Extract command
-            command = message.split()[0].strip()
-            # Extract question to get all complete message
-            if complete_message:
-                question = message.replace(command, "", 1).strip()
-            # Extract only the text is next to the command
-            else:
-                question = message.split()[1].strip()
+    #Parse message from private or group
+    if message.startswith('/'):
+        # Extract command
+        command = message.split()[0].strip()
+        # Extract question to get all complete message
+        if complete_message:
+            question = message.replace(command, "", 1).strip()
+        # Extract only the text is next to the command
         else:
-            #Only in private
-            question = message.strip()
-
-    except IndexError:
-        # if the command needs parameter and user doesn't pass
-        raise IndexError("Parameter not found to the command. Use help to see how to use")
+            question = message.split()[1].strip()
+    else:
+        #Only in private
+        question = message.strip()
 
     return question
 
@@ -182,18 +177,14 @@ def setup_bot_handlers():
     @bot.message_handler(commands=["ask", f"ask@{BOT_NAME}"], chat_types=["group", "supergroup"], content_types=["text"])
     @bot.message_handler(chat_types=["private"], content_types=["text"])
     def handle_all_question(message):
-        try:
-            question = extract_question(message.text)
+        question = extract_question(message.text)
+        if not question:
+            return bot.reply_to(message, "Use: /ask [your question]")
 
-            if message.chat.type in ["group", "supergroup"]:
-                use_get_api_llm(message, question, is_group=True)
-            else:
-                use_get_api_llm(message, question)
-
-        except IndexError as e:
-            if "Parameter not found" in str(e):
-                return bot.reply_to(message, "Use: /ask [your question]")
-            bot.reply_to(message, str(e))
+        if message.chat.type in ["group", "supergroup"]:
+            use_get_api_llm(message, question, is_group=True)
+        else:
+            use_get_api_llm(message, question)
 
     # Handler to reply in private, group
     @bot.message_handler(func=lambda m: m.reply_to_message and m.reply_to_message.from_user.id == bot_user_id, chat_types=["private","group", "supergroup"], content_types=["text"])

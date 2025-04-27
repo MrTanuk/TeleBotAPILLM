@@ -5,16 +5,23 @@ from yt_dlp import YoutubeDL
 from yt_dlp import DownloadError
 
 def download_video(url):
-    # Validación de dominios permitidos
-    patron = (
+    # Allowed domain validation.
+    pattern = (
     r'^(https?://)?(?:www\.)?'
     r'(?:'
-    r'(?:youtube\.com|youtu\.be)/(?:watch\?v=|shorts/)|'   # YouTube (videos and shorts)
-    r'(?:facebook\.com|fb\.watch)/(?:reel/|watch/|reels/|videos/|/share/)|'  # Facebook/Reels
-    r'(?:instagram\.com|instagr\.am)/(?:reel/|reels/|p/)'  # Instagram/Reels
+    # YouTube (videos/reels)
+    r'(?:youtube\.com/(?:watch\?v=|shorts/)|youtu\.be/)[\w\-]+|'
+    # Facebook (videoo/reels)
+    r'(?:facebook\.com|fb\.watch)/(?:'
+    r'(?:reel|watch|reels|videos|share)(?:/[\w\-]+)*/[\w\-]+|'  # Ej: /share/v/VIDEO_ID
+    r'[\w\-]+/videos/[\w\-]+'  # Ej: /USER_ID/videos/VIDEO_ID
+    r')|'
+    # Instagram Reels
+    r'(?:instagram\.com|instagr\.am)/(?:reel|reels|p)/[\w\-]+'
     r')'
-    r'[\w\-]+/?[\w\-?=&]*$')
-    if not re.match(patron, url, re.IGNORECASE):
+    r'(?:/?[\w\-?=&%]*)?$'  # Parámetros opcionales (ej: ?t=123)
+)
+    if not re.match(pattern, url, re.IGNORECASE):
         raise IndexError("❌ URL not allowed. Only YouTube, Facebook, and Instagram video links are permitted")
     
     MAX_SIZE_MB = 45
