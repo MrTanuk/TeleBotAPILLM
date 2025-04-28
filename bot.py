@@ -158,6 +158,8 @@ def setup_bot_handlers():
 
             except IndexError as e:
                 if "Parameter not found" in str(e):
+                    return bot.reply_to(message, str(e))
+                elif "list index out" in str(e):
                     return bot.reply_to(message, "You must send a command followed by a URL:\n\n/dl https://www.youtube.com/watch?v=...")
                 bot.reply_to(message, str(e))
 
