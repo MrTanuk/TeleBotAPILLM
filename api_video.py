@@ -19,7 +19,7 @@ def download_video(url):
     # Instagram Reels
     r'(?:instagram\.com|instagr\.am)/(?:reel|reels|p)/[\w\-]+'
     r')'
-    r'(?:/?[\w\-?=&%]*)?$'  # Parámetros opcionales (ej: ?t=123)
+    r'(?:/?[\w\-?=&%]*)?$'  # optional parameters (ej: ?t=123)
 )
     if not re.match(pattern, url, re.IGNORECASE):
         raise IndexError("❌ URL not allowed. Only YouTube, Facebook, and Instagram video links are permitted")
