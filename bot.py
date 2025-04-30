@@ -38,9 +38,9 @@ def extract_question(message, complete_message=True):
         # Extract question to get all complete message
         if complete_message:
             question = message.replace(command, "", 1).strip()
-        # Extract only the text is next to the command
+        # Extract all the text written by the user
         else:
-            question = message.split()[1].strip()
+            question = message.split()
     else:
         #Only in private
         question = message.strip()
@@ -84,10 +84,10 @@ def use_get_api_llm(message, user_text, is_group=False, is_reply=False):
         response_history[user_key]['conversation'].append({"role": "user", "content": user_text})
 
         # Maintain conversation history limit
-        MAX_HISTORY = 4
+        MAX_HISTORY = 8
         response_history[user_key]['conversation'] = response_history[user_key]['conversation'][-MAX_HISTORY:]
 
-        MAX_OUTPUT_TOKENS = 1024
+        MAX_OUTPUT_TOKENS = 500
 
         # Generate AI response using current conversation context
         ai_response = api_llm.get_api_llm(
@@ -104,15 +104,16 @@ def use_get_api_llm(message, user_text, is_group=False, is_reply=False):
         response_history[user_key]['conversation'].append({"role": "assistant", "content": ai_response})
 
     except KeyError as e:
-        bot.reply_to(message, f"Configuration error: {str(e)}")
+        bot.reply_to(message, "Configuration error, try again.")
     except ConnectionError as e:
-        bot.reply_to(message, f"Network error, try later.")
+        print(e)
+        bot.reply_to(message, str(e))
     except telebot.apihelper.ApiTelegramException as e:
         if "Can't find end of the entity starting" in str(e):
             return bot.reply_to(message, ai_response)
         raise
     except Exception as e:
-        bot.reply_to(message, f"Unexpected error: {str(e)}")
+        bot.reply_to(message, f"Unexpected error, Try later.")
 
 def setup_bot_handlers():
     # Config commands
@@ -145,7 +146,11 @@ def setup_bot_handlers():
     @bot.message_handler(commands=["dl", f"dl@{BOT_NAME}"], chat_types=["private", "group", "supergroup"], content_types=["text"])
     def send_video(message):
             try:
-                url = extract_question(message.text, complete_message=False)
+                # We get a a list of each word written by the user.
+                text = extract_question(message.text, complete_message=False)
+                # The first word should be the url
+                url = text[1].strip()
+
                 bot.send_chat_action(message.chat.id, 'upload_video')
 
                 video = api_video.download_video(url)
@@ -153,7 +158,8 @@ def setup_bot_handlers():
                     chat_id=message.chat.id,
                     video=video,
                     reply_to_message_id=message.message_id,
-                    supports_streaming=True
+                    supports_streaming=True,
+                    timeout=120
                 )
 
             except IndexError as e:
