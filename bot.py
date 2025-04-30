@@ -106,7 +106,7 @@ def use_get_api_llm(message, user_text, is_group=False, is_reply=False):
     except KeyError as e:
         bot.reply_to(message, f"Configuration error: {str(e)}")
     except ConnectionError as e:
-        bot.reply_to(message, f"Network error: {str(e)}")
+        bot.reply_to(message, f"Network error, try later.")
     except telebot.apihelper.ApiTelegramException as e:
         if "Can't find end of the entity starting" in str(e):
             return bot.reply_to(message, ai_response)
