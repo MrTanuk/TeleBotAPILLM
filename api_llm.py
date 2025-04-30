@@ -75,7 +75,8 @@ def get_api_llm(messages, API_TOKEN, API_URL, LLM_MODEL, PROVIDER, MAX_OUTPUT_TO
         response = requests.post(
             API_URL,
             json=config["data"],
-            headers=config["headers"]
+            headers=config["headers"],
+            timeout=15,
         )
         response.raise_for_status()
         return parse_response(response.json(), PROVIDER)
@@ -92,7 +93,9 @@ def get_api_llm(messages, API_TOKEN, API_URL, LLM_MODEL, PROVIDER, MAX_OUTPUT_TO
                 error_message = "❌ Rate limit exceeded"
             elif status_code == 404:
                 error_message = "❌ API endpoint not found"
+            elif status_code >= 500:
+                error_message = "❌ Service temporarily unavailable. Please try again in a few seconds."
         
-        raise ConnectionError(f"{error_message}: {str(e)}") from e
+        raise ConnectionError(error_message) from e
     except Exception as e:
         raise RuntimeError(f"🚨 Unexpected error: {str(e)}") from e

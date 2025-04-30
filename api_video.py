@@ -5,83 +5,97 @@ from yt_dlp import YoutubeDL
 from yt_dlp import DownloadError
 
 def download_video(url):
-    # Allowed domain validation.
-    pattern = (
-    r'^(https?://)?(?:www\.)?'
-    r'(?:'
-    # YouTube (videos/reels)
-    r'(?:youtube\.com/(?:watch\?v=|shorts/)|youtu\.be/)[\w\-]+|'
-    # Facebook (videoo/reels)
-    r'(?:facebook\.com|fb\.watch)/(?:'
-    r'(?:reel|watch|reels|videos|share)(?:/[\w\-]+)*/[\w\-]+|'  # Ej: /share/v/VIDEO_ID
-    r'[\w\-]+/videos/[\w\-]+'  # Ej: /USER_ID/videos/VIDEO_ID
-    r')|'
-    # Instagram Reels
-    r'(?:instagram\.com|instagr\.am)/(?:reel|reels|p)/[\w\-]+'
-    r')'
-    r'(?:/?[\w\-?=&%]*)?$'  # optional parameters (ej: ?t=123)
-)
-    if not re.match(pattern, url, re.IGNORECASE):
-        raise IndexError("❌ URL not allowed. Only YouTube, Facebook, and Instagram video links are permitted")
+    # Enhanced URL validation pattern
+    url_pattern = re.compile(
+        r'^(https?://)?(?:www\.)?'
+        r'(?:'
+        r'(?:youtube\.com/(?:watch\?v=|shorts/)|youtu\.be/)[\w\-]+|'  # YouTube patterns
+        r'(?:facebook\.com|fb\.watch)/(?:reel|watch|videos|share)/[^/]+|'  # Facebook patterns
+        r'(?:instagram\.com|instagr\.am)/(?:reels?|p)/[\w\-]+'  # Instagram patterns
+        r')',
+        re.IGNORECASE
+    )
     
+    if not url_pattern.match(url):
+        raise ValueError("❌ Invalid URL. Only YouTube, Facebook, and Instagram videos are supported")
+
+    # Platform-specific format selection
+    if "youtube.com" in url.lower() or "youtu.be" in url.lower():
+        format_spec = 'bestvideo[ext=mp4][vcodec^=avc1][height<=480]+bestaudio/best'  # YouTube optimized
+    elif "instagram.com" in url.lower() or "instagr.am" in url.lower():
+        format_spec = 'best[ext=mp4]/bestvideo+bestaudio'  # Instagram specific handling
+    else:  # Facebook
+        format_spec = '(bestvideo[vcodec^=avc1][height<=720]+bestaudio)/best'  # Facebook optimized
+
     MAX_SIZE_MB = 45
-    MAX_SIZE_BYTES = MAX_SIZE_MB * 1_000_000  # 45MB
+    MAX_SIZE_BYTES = MAX_SIZE_MB * 1_000_000
 
     try:
         with tempfile.TemporaryDirectory() as tmpdir:
             ydl_opts = {
-                'outtmpl': f'{tmpdir}/%(id)s.%(ext)s',
-                'format': 'bestvideo[ext=mp4][vcodec^=avc1]+bestaudio/best[height<=720]',
-                'quiet': True,
+                'outtmpl': f'{tmpdir}/%(id)s.%(ext)s',  # Temporary output template
+                'format': format_spec,
+                'quiet': False,  # Enable debug output
                 'no_warnings': False,
                 'noplaylist': True,
-                'max_filesize': MAX_SIZE_BYTES,  # 45MB
-                'merge_output_format': 'mp4',
-                'retries': 3,
-                'fragment_retries': 3,
+                'max_filesize': MAX_SIZE_BYTES,
+                'merge_output_format': 'mp4',  # Force MP4 container
+                'socket_timeout': 30,
+                'retries': 10,
+                'fragment_retries': 10,
                 'http_headers': {
                     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                    'Referer': (
+                        'https://www.instagram.com/' 
+                        if "instagram" in url.lower() 
+                        else 'https://www.facebook.com/'
+                    )
                 },
                 'postprocessors': [{
                     'key': 'FFmpegVideoConvertor',
-                    'preferedformat': 'mp4',
+                    'preferedformat': 'mp4',  # Ensure MP4 output
                     'when': 'post_process'
-                }]
+                }],
+                'extractor_args': {
+                    'instagram': {'format_sort': ['quality']}  # Quality first for Instagram
+                }
             }
             
             with YoutubeDL(ydl_opts) as ydl:
-                info_dict = ydl.extract_info(url, download=True)
-                filename = ydl.prepare_filename(info_dict)
-
+                # Extract video info and download
+                info = ydl.extract_info(url, download=True)
+                
+                # Verify downloaded file
+                filename = ydl.prepare_filename(info)
+                if not os.path.exists(filename):
+                    raise RuntimeError("Downloaded file not found")
+                
+                # Size validation
                 file_size = os.path.getsize(filename)
                 if file_size > MAX_SIZE_BYTES:
+                    os.remove(filename)  # Cleanup oversized files
                     raise ValueError(
-                        f"❌ Video too large ({file_size/1_000_000:.2f}MB)\n"
-                        f"(Limit: {MAX_SIZE_MB}MB)"
+                        f"❌ Video too large ({file_size/1_000_000:.1f}MB > "
+                        f"{MAX_SIZE_MB}MB limit)"
                     )
 
+                # Read and return video bytes
                 with open(filename, 'rb') as f:
-                    video_data = f.read()
+                    return f.read()
 
-        return video_data
-
-    except IndexError as e:
-        raise IndexError(str(e))
-    except ValueError as e:
-        raise ValueError(str(e))
     except DownloadError as e:
         error_msg = str(e)
-        if "File is larger than max-filesize" in error_msg:
-            raise ValueError(
-                f"❌ The video exceeds the limit of... {MAX_SIZE_MB}MB. "
-                "Try a shorter video."
-            )
-        elif "Video unavailable" in error_msg:
-            raise ValueError("The video doesn't exit or is private")
-        elif "accessible in your browser without being logged-in" in error_msg:
-            raise ValueError("This content is private or requires authentication.")
-        elif "There is no video in this post" in error_msg:
-            raise ValueError("Send link that contains only video")
-        raise ValueError(f"❌ Error downloading: {str(e)}")
+        # Handle common error scenarios
+        if "Requested format is not available" in error_msg:
+            raise ValueError("⚠️ Requested format unavailable. Try a different video")
+        elif "private video" in error_msg.lower():
+            raise ValueError("🔒 Private content or login required")
+        elif "unable to download video data" in error_msg.lower():
+            raise ValueError("🚫 Video data inaccessible. May be age-restricted")
+        raise ValueError(f"❌ Download failed: {error_msg.split(':')[-1].strip()}")
+    
     except Exception as e:
-        raise RuntimeError(f"🚨 Unexpected error during download: {str(e)}") from e
+        # Cleanup temporary files on critical errors
+        if 'filename' in locals() and os.path.exists(filename):
+            os.remove(filename)
+        raise RuntimeError(f"🚨 Unexpected error: {str(e)}") from e
