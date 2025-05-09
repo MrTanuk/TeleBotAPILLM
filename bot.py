@@ -1,5 +1,5 @@
 import os
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from dotenv import load_dotenv
 from flask import Flask, request
 import telebot
@@ -29,6 +29,13 @@ WEBHOOK_URL = os.getenv("WEBHOOK_URL")
 bot = telebot.TeleBot(str(BOT_TOKEN))
 bot_user_id = bot.get_me().id
 
+def is_correct_command(message, command_well):
+    command = message.partition(' ')[0]
+    if command == f'{command_well}@{BOT_NAME}' or command == command_well:
+        return True
+    else:
+        return False
+
 def extract_question(message, complete_message=True):
     """Separate the command of the bot and the message made by the user neither private or group"""
     #Parse message from private or group
@@ -56,8 +63,7 @@ def use_get_api_llm(message, user_text, is_group=False, is_reply=False):
             return
         
         user_key = (message.chat.id, message.from_user.id)
-        current_time = datetime.utcnow()
-
+        current_time = datetime.now(timezone.utc)
         # Check if history exists and needs reset
         if user_key in response_history:
             history_data = response_history[user_key]
@@ -128,11 +134,17 @@ def setup_bot_handlers():
     # Handler to /start
     @bot.message_handler(commands=["start", f"start@{BOT_NAME}"], chat_types=["private", "group", "supergroup"])
     def send_start(message):
+        if not is_correct_command(message.text, "/start"):
+            return None
+
         bot.send_message(message.chat.id, "Welcome to Mario Kart... ♪♪")
 
     # Handler to /help
     @bot.message_handler(commands=["help", f"help@{BOT_NAME}"], chat_types=["private", "group", "supergroup"])
     def send_help(message):
+        if not is_correct_command(message.text, "/help"):
+            return None
+
         help_text = (
             "🤖 *Commands available:* \n"
             "/start\n"
@@ -145,36 +157,42 @@ def setup_bot_handlers():
     # Handler to /dl (Download video and send to the user)
     @bot.message_handler(commands=["dl", f"dl@{BOT_NAME}"], chat_types=["private", "group", "supergroup"], content_types=["text"])
     def send_video(message):
-            try:
-                # We get a a list of each word written by the user.
-                text = extract_question(message.text, complete_message=False)
-                # The first word should be the url
-                url = text[1].strip()
+        if not is_correct_command(message.text, "/dl"):
+            return None
 
-                bot.send_chat_action(message.chat.id, 'upload_video')
+        try:
+            # We get a a list of each word written by the user.
+            text = extract_question(message.text, complete_message=False)
+            # The first word should be the url
+            url = text[1].strip()
 
-                video = api_video.download_video(url)
-                bot.send_video(
-                    chat_id=message.chat.id,
-                    video=video,
-                    reply_to_message_id=message.message_id,
-                    supports_streaming=True,
-                    timeout=120
-                )
+            bot.send_chat_action(message.chat.id, 'upload_video')
 
-            except IndexError as e:
-                if "Parameter not found" in str(e):
-                    return bot.reply_to(message, str(e))
-                elif "list index out" in str(e):
-                    return bot.reply_to(message, "You must send a command followed by a URL:\n\n/dl https://www.youtube.com/watch?v=...")
-                bot.reply_to(message, str(e))
+            video = api_video.download_video(url)
+            bot.send_video(
+                chat_id=message.chat.id,
+                video=video,
+                reply_to_message_id=message.message_id,
+                supports_streaming=True,
+                timeout=120
+            )
 
-            except (ValueError, Exception) as ve:
-                bot.reply_to(message, str(ve))
+        except IndexError as e:
+            if "Parameter not found" in str(e):
+                return bot.reply_to(message, str(e))
+            elif "list index out" in str(e):
+                return bot.reply_to(message, "You must send a command followed by a URL:\n\n/dl https://www.youtube.com/watch?v=...")
+            bot.reply_to(message, str(e))
+
+        except (ValueError, Exception) as ve:
+            bot.reply_to(message, str(ve))
 
     # Handler to /new (clear history)
     @bot.message_handler(commands=["new", f"new@{BOT_NAME}"], chat_types=["private", "group", "supergroup"])
     def clear_history(message):
+        if not is_correct_command(message.text, "/new"):
+            return None
+
         key = (message.chat.id, message.from_user.id)
 
         if key in response_history:
