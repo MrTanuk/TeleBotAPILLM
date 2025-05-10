@@ -58,17 +58,16 @@ def extract_question(message, complete_message=True):
         #Only in private
         question = message.strip()
     
-    print(question)
     return question
 
 def use_get_api_llm(message, user_text, is_group=False, is_reply=False):
     try:
+        # Handle group replies without proper command
+        if is_group and is_reply and (not message.text.startswith('/ask') and (f'/ask@{BOT_NAME}' in message.text or not f'@{BOT_NAME}' in message.text)):
+            return None
+        
         bot.send_chat_action(message.chat.id, "typing")
 
-        # Handle group replies without proper command
-        if is_group and is_reply and not message.text.startswith(('/ask', f'/ask@{BOT_NAME}')):
-            return
-        
         user_key = (message.chat.id, message.from_user.id)
         current_time = datetime.now(timezone.utc)
         # Check if history exists and needs reset
