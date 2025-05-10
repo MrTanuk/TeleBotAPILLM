@@ -29,9 +29,15 @@ WEBHOOK_URL = os.getenv("WEBHOOK_URL")
 bot = telebot.TeleBot(str(BOT_TOKEN))
 bot_user_id = bot.get_me().id
 
-def is_correct_command(message, command_well):
+def is_type_chat_command(message, command_well, type_chat=False):
+    """This is for differentiate the commands that has the same names of others bots in the same group, so in group is used complete command, and private can be both"""
     command = message.partition(' ')[0]
-    if command == f'{command_well}@{BOT_NAME}' or command == command_well:
+    complete_command = f'{command_well}@{BOT_NAME}'
+    # Use complete command only in groups
+    if command == complete_command and type_chat:
+        return True
+    # Use either complete command or command in private
+    elif command in (command_well, complete_command) and not type_chat:
         return True
     else:
         return False
@@ -51,7 +57,8 @@ def extract_question(message, complete_message=True):
     else:
         #Only in private
         question = message.strip()
-
+    
+    print(question)
     return question
 
 def use_get_api_llm(message, user_text, is_group=False, is_reply=False):
@@ -119,6 +126,7 @@ def use_get_api_llm(message, user_text, is_group=False, is_reply=False):
             return bot.reply_to(message, ai_response)
         raise
     except Exception as e:
+        print("Error on bot.py APi:", e)
         bot.reply_to(message, f"Unexpected error, Try later.")
 
 def setup_bot_handlers():
@@ -134,7 +142,7 @@ def setup_bot_handlers():
     # Handler to /start
     @bot.message_handler(commands=["start", f"start@{BOT_NAME}"], chat_types=["private", "group", "supergroup"])
     def send_start(message):
-        if not is_correct_command(message.text, "/start"):
+        if not is_type_chat_command(message.text, "/start"):
             return None
 
         bot.send_message(message.chat.id, "Welcome to Mario Kart... ♪♪")
@@ -142,7 +150,7 @@ def setup_bot_handlers():
     # Handler to /help
     @bot.message_handler(commands=["help", f"help@{BOT_NAME}"], chat_types=["private", "group", "supergroup"])
     def send_help(message):
-        if not is_correct_command(message.text, "/help"):
+        if not is_type_chat_command(message.text, "/help"):
             return None
 
         help_text = (
@@ -157,7 +165,7 @@ def setup_bot_handlers():
     # Handler to /dl (Download video and send to the user)
     @bot.message_handler(commands=["dl", f"dl@{BOT_NAME}"], chat_types=["private", "group", "supergroup"], content_types=["text"])
     def send_video(message):
-        if not is_correct_command(message.text, "/dl"):
+        if not is_type_chat_command(message.text, "/dl"):
             return None
 
         try:
@@ -190,7 +198,7 @@ def setup_bot_handlers():
     # Handler to /new (clear history)
     @bot.message_handler(commands=["new", f"new@{BOT_NAME}"], chat_types=["private", "group", "supergroup"])
     def clear_history(message):
-        if not is_correct_command(message.text, "/new"):
+        if not is_type_chat_command(message.text, "/new"):
             return None
 
         key = (message.chat.id, message.from_user.id)
