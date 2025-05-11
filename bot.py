@@ -210,14 +210,13 @@ def setup_bot_handlers():
     @bot.message_handler(commands=["ask", f"ask@{BOT_NAME}"], chat_types=["group", "supergroup"], content_types=["text"])
     @bot.message_handler(chat_types=["private"], content_types=["text"])
     def handle_all_question(message):
-        if not is_type_chat_command(message.text, "/ask"):
-            return None
-
         question = extract_question(message.text)
         if not question:
             return bot.reply_to(message, "Use: /ask [your question]")
 
         if message.chat.type in ["group", "supergroup"]:
+            if not is_type_chat_command(message.text, "/ask"):
+                return None
             use_get_api_llm(message, question, is_group=True)
         else:
             use_get_api_llm(message, question)
