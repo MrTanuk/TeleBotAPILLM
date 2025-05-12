@@ -227,6 +227,12 @@ def setup_bot_handlers():
         is_group = message.chat.type in ["group", "supergroup"]
         use_get_api_llm(message, message.text, is_group=is_group, is_reply=True)
 
+    @bot.message_handler(content_types=['new_chat_members'])
+    def handle_new_users(message):
+            new_user = message.new_chat_members[-1].first_name
+            bot.reply_to(message, f'Welcome, {new_user}! I hope you enjoy this group 🎉.')
+
+
 # handlers config
 setup_bot_handlers()
 
@@ -251,6 +257,7 @@ if __name__ == '__main__':
         from waitress import serve
         bot.remove_webhook()
         bot.set_webhook(url=WEBHOOK_URL + '/webhook')
+
         serve(app, host='0.0.0.0', port=8080)
     else:
         bot.delete_webhook()
