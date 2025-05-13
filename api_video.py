@@ -37,7 +37,7 @@ def download_video(url):
                 'format': format_spec,
                 'quiet': False,  # Enable debug output
                 'no_warnings': True,
-                'cookiefile': '',
+                'cookiefile': None,
                 'noplaylist': True,
                 'max_filesize': MAX_SIZE_BYTES,
                 'merge_output_format': 'mp4',  # Force MP4 container
@@ -58,10 +58,19 @@ def download_video(url):
                     'when': 'post_process'
                 }],
                 'extractor_args': {
-                    'youtube': {'skip': ['dash', 'hls'], 'player_client': ['android_embed']},
-                    'instagram': {'format_sort': ['quality']},
-                    'facebook': {'video_formats': 'sd'}
-        },
+                    'youtube': {
+                        'skip': ['dash', 'hls'],
+                        'player_client': ['android_embed'],
+                        'skip_cookie_handling': True},
+                    'instagram': {
+                        'format_sort': ['quality']},
+                    'facebook': {
+                        'video_formats': 'sd'}
+                },
+                'compat_opts': {
+                    'no-youtube-unavailable-videos',
+                    'no-youtube-channel-redirect'
+    }
             }
             
             with YoutubeDL(ydl_opts) as ydl:
