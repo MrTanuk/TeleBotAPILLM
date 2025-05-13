@@ -144,7 +144,7 @@ def setup_bot_handlers():
         if not is_type_chat_command(message.text, "/start"):
             return None
 
-        bot.send_message(message.chat.id, "Welcome to Mario Kart... ♪♪")
+        bot.reply_to(message, "Welcome to Mario Kart... ♪♪")
 
     # Handler to /help
     @bot.message_handler(commands=["help", f"help@{BOT_NAME}"], chat_types=["private", "group", "supergroup"])
@@ -159,7 +159,7 @@ def setup_bot_handlers():
             "/ask [questions] - init the conversation. Optional in private\n"
             "/dl [url] - Download video from Youtube, Facebook and Instagram"
         )
-        bot.reply_to(message, help_text, parse_mode="markdown")
+        bot.reply_to(message, help_text, parse_mode="markdown", reply_markup=markup)
     
     # Handler to /dl (Download video and send to the user)
     @bot.message_handler(commands=["dl", f"dl@{BOT_NAME}"], chat_types=["private", "group", "supergroup"], content_types=["text"])
