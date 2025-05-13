@@ -35,7 +35,7 @@ def download_video(url):
             ydl_opts = {
                 'outtmpl': f'{tmpdir}/%(id)s.%(ext)s',  # Temporary output template
                 'format': format_spec,
-                'quiet': False,
+                'quiet': False,  # Enable debug output
                 'no_warnings': True,
                 'cookiefile': '',
                 'noplaylist': True,
@@ -87,20 +87,15 @@ def download_video(url):
                     return f.read()
 
     except DownloadError as e:
-        error_msg = str(e).lower()
+        error_msg = str(e)
         # Handle common error scenarios
         if "Requested format is not available" in error_msg:
             raise ValueError("⚠️ Requested format unavailable. Try a different video")
         elif "private video" in error_msg.lower():
             raise ValueError("🔒 Private content or login required")
-        elif "cookies" in error_msg or "login" in error_msg:
-            raise ValueError("🔒 Content requires cookies/login (not supported)")
-        elif "age restricted" in error_msg:
-            raise ValueError("🔞 Content requires login/cookies (not supported)")
+        elif "unable to download video data" in error_msg.lower():
+            raise ValueError("🚫 Video data inaccessible. May be age-restricted")
         raise ValueError(f"❌ Download failed: {error_msg.split(':')[-1].strip()}")
     
     except Exception as e:
-        # Cleanup temporary files on critical errors
-        if 'filename' in locals() and os.path.exists(filename):
-            os.remove(filename)
         raise RuntimeError(f"🚨 Unexpected error: {str(e)}") from e
