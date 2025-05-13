@@ -35,8 +35,9 @@ def download_video(url):
             ydl_opts = {
                 'outtmpl': f'{tmpdir}/%(id)s.%(ext)s',  # Temporary output template
                 'format': format_spec,
-                'quiet': False,  # Enable debug output
-                'no_warnings': False,
+                'quiet': False,
+                'no_warnings': True,
+                'cookiefile': '',
                 'noplaylist': True,
                 'max_filesize': MAX_SIZE_BYTES,
                 'merge_output_format': 'mp4',  # Force MP4 container
@@ -57,8 +58,10 @@ def download_video(url):
                     'when': 'post_process'
                 }],
                 'extractor_args': {
-                    'instagram': {'format_sort': ['quality']}  # Quality first for Instagram
-                }
+                    'youtube': {'skip': ['dash', 'hls'], 'player_client': ['android_embed']},
+                    'instagram': {'format_sort': ['quality']},
+                    'facebook': {'video_formats': 'sd'}
+        },
             }
             
             with YoutubeDL(ydl_opts) as ydl:
@@ -84,14 +87,16 @@ def download_video(url):
                     return f.read()
 
     except DownloadError as e:
-        error_msg = str(e)
+        error_msg = str(e).lower()
         # Handle common error scenarios
         if "Requested format is not available" in error_msg:
             raise ValueError("⚠️ Requested format unavailable. Try a different video")
         elif "private video" in error_msg.lower():
             raise ValueError("🔒 Private content or login required")
-        elif "unable to download video data" in error_msg.lower():
-            raise ValueError("🚫 Video data inaccessible. May be age-restricted")
+        elif "cookies" in error_msg or "login" in error_msg:
+            raise ValueError("🔒 Content requires cookies/login (not supported)")
+        elif "age restricted" in error_msg:
+            raise ValueError("🔞 Content requires login/cookies (not supported)")
         raise ValueError(f"❌ Download failed: {error_msg.split(':')[-1].strip()}")
     
     except Exception as e:
