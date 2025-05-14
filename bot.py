@@ -1,4 +1,6 @@
 import os
+import sys
+import logging
 from datetime import datetime, timedelta, timezone
 from dotenv import load_dotenv
 from flask import Flask, request
@@ -29,33 +31,28 @@ WEBHOOK_URL = os.getenv("WEBHOOK_URL")
 bot = telebot.TeleBot(str(BOT_TOKEN))
 bot_user_id = bot.get_me().id
 
-def is_type_chat_command(message, command_well, type_chat=False):
+def is_valid_command(message):
     """This is for differentiate the commands that has the same names of others bots in the same group, so in group is used complete command, and private can be both"""
-    command = message.partition(' ')[0]
-    complete_command = f'{command_well}@{BOT_NAME}'
+    command = telebot.util.extract_command(message.text)
+    user_command = message.text.partition(' ')[0].replace('/', '')
+    complete_command = f'{command}@{BOT_NAME}'
+
     # Use complete command only in groups
-    if command == complete_command and type_chat:
+    if user_command == complete_command and message.chat.type in ['groups', 'supergroup']:
         return True
     # Use either complete command or command in private
-    elif command in (command_well, complete_command) and not type_chat:
+    elif user_command in (command, complete_command) and message.chat.type == 'private':
         return True
     else:
         return False
 
-def extract_question(message, complete_message=True):
+def extract_question(message):
     """Separate the command of the bot and the message made by the user neither private or group"""
     #Parse message from private or group
     if message.startswith('/'):
-        # Extract command
-        command = message.split()[0].strip()
-        # Extract question to get all complete message
-        if complete_message:
-            question = message.replace(command, "", 1).strip()
-        # Extract all the text written by the user
-        else:
-            question = message.split()
+        question = telebot.util.extract_arguments(message)
+    #Only in private
     else:
-        #Only in private
         question = message.strip()
     
     return question
@@ -96,10 +93,10 @@ def use_get_api_llm(message, user_text, is_group=False, is_reply=False):
         response_history[user_key]['conversation'].append({"role": "user", "content": user_text})
 
         # Maintain conversation history limit
-        MAX_HISTORY = 8
+        MAX_HISTORY = 15
         response_history[user_key]['conversation'] = response_history[user_key]['conversation'][-MAX_HISTORY:]
 
-        MAX_OUTPUT_TOKENS = 500
+        MAX_OUTPUT_TOKENS = 349
 
         # Generate AI response using current conversation context
         ai_response = api_llm.get_api_llm(
@@ -118,15 +115,13 @@ def use_get_api_llm(message, user_text, is_group=False, is_reply=False):
     except KeyError as e:
         bot.reply_to(message, "Configuration error, try again.")
     except ConnectionError as e:
-        print(e)
         bot.reply_to(message, str(e))
     except telebot.apihelper.ApiTelegramException as e:
         if "Can't find end of the entity starting" in str(e):
             return bot.reply_to(message, ai_response)
         raise
     except Exception as e:
-        print("Error on bot.py APi:", e)
-        bot.reply_to(message, f"Unexpected error, Try later.")
+        bot.reply_to(message, f"Unexpected error, Try again.")
 
 def setup_bot_handlers():
     # Config commands
@@ -135,13 +130,13 @@ def setup_bot_handlers():
         telebot.types.BotCommand("/help", "Show all commands"),
         telebot.types.BotCommand("/ask", "Ask something"),
         telebot.types.BotCommand("/new", "Clear the historial"),
-        telebot.types.BotCommand("/dl", "Download videos from Youtube, Facebook and Instagram")
+        telebot.types.BotCommand("/dl", "Download videos from Facebook and Instagram")
     ])
 
     # Handler to /start
     @bot.message_handler(commands=["start", f"start@{BOT_NAME}"], chat_types=["private", "group", "supergroup"])
     def send_start(message):
-        if not is_type_chat_command(message.text, "/start"):
+        if not is_valid_command(message):
             return None
 
         bot.reply_to(message, "Welcome to Mario Kart... ♪♪")
@@ -149,29 +144,31 @@ def setup_bot_handlers():
     # Handler to /help
     @bot.message_handler(commands=["help", f"help@{BOT_NAME}"], chat_types=["private", "group", "supergroup"])
     def send_help(message):
-        if not is_type_chat_command(message.text, "/help"):
+        if not is_valid_command(message):
             return None
 
         help_text = (
-            "🤖 *Commands available:* \n"
+            "🤖 Commands available: \n\n"
             "/start\n"
             "/help - Show help\n"
             "/ask [questions] - init the conversation. Optional in private\n"
-            "/dl [url] - Download video from Youtube, Facebook and Instagram"
+            "/dl [url] - Download video from Youtube, Facebook and Instagram\n\n"
+            "In groups, the commands must have the name bot. For example:\n"
+            f'/ask@{BOT_NAME}'
         )
-        bot.reply_to(message, help_text, parse_mode="markdown", reply_markup=markup)
+        bot.reply_to(message, help_text)
     
     # Handler to /dl (Download video and send to the user)
     @bot.message_handler(commands=["dl", f"dl@{BOT_NAME}"], chat_types=["private", "group", "supergroup"], content_types=["text"])
     def send_video(message):
-        if not is_type_chat_command(message.text, "/dl"):
+        if not is_valid_command(message):
             return None
 
         try:
             # We get a a list of each word written by the user.
-            text = extract_question(message.text, complete_message=False)
+            text = extract_question(message.text)
             # The first word should be the url
-            url = text[1].strip()
+            url = text.split()[0].strip()
 
             bot.send_chat_action(message.chat.id, 'upload_video')
 
@@ -197,7 +194,7 @@ def setup_bot_handlers():
     # Handler to /new (clear history)
     @bot.message_handler(commands=["new", f"new@{BOT_NAME}"], chat_types=["private", "group", "supergroup"])
     def clear_history(message):
-        if not is_type_chat_command(message.text, "/new"):
+        if not is_valid_command(message):
             return None
 
         key = (message.chat.id, message.from_user.id)
@@ -215,7 +212,7 @@ def setup_bot_handlers():
             return bot.reply_to(message, "Use: /ask [your question]")
 
         if message.chat.type in ["group", "supergroup"]:
-            if not is_type_chat_command(message.text, "/ask"):
+            if not is_valid_command(message):
                 return None
             use_get_api_llm(message, question, is_group=True)
         else:
@@ -232,9 +229,32 @@ def setup_bot_handlers():
             new_user = message.new_chat_members[-1].first_name
             bot.reply_to(message, f'Welcome, {new_user}! I hope you enjoy this group 🎉.')
 
+def setup_logging():
+    formatting = logging.Formatter('%(asctime)s | %(levelname)-8s | %(name)s | %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
+
+    stream_logging = logging.StreamHandler(sys.stdout)
+    stream_logging.setFormatter(formatting)
+
+    logger = logging.getLogger()
+    logger.setLevel(logging.DEBUG)
+    logger.addHandler(stream_logging)
+
+    # Show only errors
+    logging.getLogger('telebot').setLevel(logging.ERROR)
+    logging.getLogger('urllib3').setLevel(logging.ERROR)
+    logging.getLogger('yt_dlp').setLevel(logging.ERROR)
+
+    if os.environ.get('HOSTING'):
+        stream_logging.setLevel(logging.INFO)
+    else:
+        stream_logging.setLevel(logging.DEBUG)
+
 
 # handlers config
 setup_bot_handlers()
+setup_logging()
+
+logger = logging.getLogger(__name__)
 
 # ========== Flask routes ==========
 @app.route('/')

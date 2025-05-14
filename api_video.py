@@ -1,15 +1,18 @@
 import os
 import re
+import logging
 import tempfile
 from yt_dlp import YoutubeDL
 from yt_dlp import DownloadError
+
+logger = logging.getLogger(__name__)
 
 def download_video(url):
     # Enhanced URL validation pattern
     url_pattern = re.compile(
         r'^(https?://)?(?:www\.)?'
         r'(?:'
-        r'(?:youtube\.com/(?:watch\?v=|shorts/)|youtu\.be/)[\w\-]+|'  # YouTube patterns
+        #r'(?:youtube\.com/(?:watch\?v=|shorts/)|youtu\.be/)[\w\-]+|'  # YouTube patterns
         r'(?:facebook\.com|fb\.watch)/(?:reel|watch|videos|share)/[^/]+|'  # Facebook patterns
         r'(?:instagram\.com|instagr\.am)/(?:reels?|p)/[\w\-]+'  # Instagram patterns
         r')',
@@ -17,12 +20,12 @@ def download_video(url):
     )
     
     if not url_pattern.match(url):
-        raise ValueError("❌ Invalid URL. Only YouTube, Facebook, and Instagram videos are supported")
+        raise ValueError("❌ Invalid URL. Facebook, and Instagram videos are supported")
 
     # Platform-specific format selection
-    if "youtube.com" in url.lower() or "youtu.be" in url.lower():
+    #if "youtube.com" in url.lower() or "youtu.be" in url.lower():
         format_spec = 'bestvideo[ext=mp4][vcodec^=avc1][height<=480]+bestaudio/best'  # YouTube optimized
-    elif "instagram.com" in url.lower() or "instagr.am" in url.lower():
+    if "instagram.com" in url.lower() or "instagr.am" in url.lower():
         format_spec = 'best[ext=mp4]/bestvideo+bestaudio'  # Instagram specific handling
     else:  # Facebook
         format_spec = '(bestvideo[vcodec^=avc1][height<=720]+bestaudio)/best'  # Facebook optimized
@@ -35,7 +38,7 @@ def download_video(url):
             ydl_opts = {
                 'outtmpl': f'{tmpdir}/%(id)s.%(ext)s',  # Temporary output template
                 'format': format_spec,
-                'quiet': False,  # Enable debug output
+                'quiet': True,  # Disable debug output
                 'no_warnings': True,
                 'cookiefile': None,
                 'noplaylist': True,
@@ -58,19 +61,11 @@ def download_video(url):
                     'when': 'post_process'
                 }],
                 'extractor_args': {
-                    'youtube': {
-                        'skip': ['dash', 'hls'],
-                        'player_client': ['android_embed'],
-                        'skip_cookie_handling': True},
                     'instagram': {
                         'format_sort': ['quality']},
                     'facebook': {
                         'video_formats': 'sd'}
                 },
-                'compat_opts': {
-                    'no-youtube-unavailable-videos',
-                    'no-youtube-channel-redirect'
-    }
             }
             
             with YoutubeDL(ydl_opts) as ydl:
@@ -96,15 +91,21 @@ def download_video(url):
                     return f.read()
 
     except DownloadError as e:
-        error_msg = str(e)
+        error_msg = str(e).lower()
         # Handle common error scenarios
         if "Requested format is not available" in error_msg:
             raise ValueError("⚠️ Requested format unavailable. Try a different video")
-        elif "private video" in error_msg.lower():
+        elif "private video" in error_msg:
             raise ValueError("🔒 Private content or login required")
-        elif "unable to download video data" in error_msg.lower():
+        elif "unable to download video data" in error_msg:
             raise ValueError("🚫 Video data inaccessible. May be age-restricted")
+        elif "cookie" in error_msg:
+            raise ValueError("Content requires cookies (not supported).")
+        elif "too many requests" in error_msg:
+            raise ValueError("Server error: Too many request. Try later or another video")
+
+        logger.error("Error downloading video: %s", str(e), exc_info=True)
         raise ValueError(f"❌ Download failed: {error_msg.split(':')[-1].strip()}")
-    
     except Exception as e:
+        logger.error("Unexpected error on API video %s", str(e), exc_info=True)
         raise RuntimeError(f"🚨 Unexpected error: {str(e)}") from e
