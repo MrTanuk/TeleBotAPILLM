@@ -1,5 +1,9 @@
+from sys import exc_info
 import requests
+import logging
 from requests.exceptions import RequestException
+
+logger = logging.getLogger(__name__)
 
 def is_env_exist(API_TOKEN, API_URL, LLM_MODEL, PROVIDER):
     if None in (API_TOKEN, API_URL, LLM_MODEL, PROVIDER):
@@ -96,6 +100,8 @@ def get_api_llm(messages, API_TOKEN, API_URL, LLM_MODEL, PROVIDER, MAX_OUTPUT_TO
             elif status_code >= 500:
                 error_message = "❌ Service temporarily unavailable. Please try again in a few seconds."
         
+        logger.error("Connection error on API LLM %s", str(e), exc_info=True)
         raise ConnectionError(error_message) from e
     except Exception as e:
+        logger.error("Unexpected error on API LLM %s", str(e), exc_info=True)
         raise RuntimeError(f"🚨 Unexpected error: {str(e)}") from e
