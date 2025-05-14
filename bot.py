@@ -185,7 +185,7 @@ def setup_bot_handlers():
             if "Parameter not found" in str(e):
                 return bot.reply_to(message, str(e))
             elif "list index out" in str(e):
-                return bot.reply_to(message, "You must send a command followed by a URL:\n\n/dl https://www.youtube.com/watch?v=...")
+                return bot.reply_to(message, "You must send a command followed by a URL:\n\n/dl https://www.instagram.com/reel/...")
             bot.reply_to(message, str(e))
 
         except (ValueError, Exception) as ve:
