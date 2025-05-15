@@ -152,7 +152,7 @@ def setup_bot_handlers():
             "/start\n"
             "/help - Show help\n"
             "/ask [questions] - init the conversation. Optional in private\n"
-            "/dl [url] - Download video from Youtube, Facebook and Instagram\n\n"
+            "/dl [url] - Download videos from Facebook, Instagram and TikTok\n\n"
             "In groups, the commands must have the name bot. For example:\n"
             f'/ask@{BOT_NAME}'
         )

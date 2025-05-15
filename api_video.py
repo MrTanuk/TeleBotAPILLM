@@ -13,22 +13,25 @@ def download_video(url):
         r'^(https?://)?(?:www\.)?'
         r'(?:'
         #r'(?:youtube\.com/(?:watch\?v=|shorts/)|youtu\.be/)[\w\-]+|'  # YouTube patterns
-        r'(?:facebook\.com|fb\.watch)/(?:reel|watch|videos|share)/[^/]+|'  # Facebook patterns
-        r'(?:instagram\.com|instagr\.am)/(?:reels?|p)/[\w\-]+'  # Instagram patterns
+        r'(?:facebook\.com|fb\.watch)/(?:[a-zA-Z0-9.-]+/)?(?:reel|watch|videos|share|[\w-]+/videos)/(?:[\w-]+/?)(?:\?.*)?|'  # Facebook patterns
+        r'(?:instagram\.com|instagr\.am)/(?:reels?|p)/[\w\-]+|'  # Instagram patterns
+        r'(?:vm\.|vt\.)?tiktok\.com/(?:@[\w.-]+/video/|embed/|v/)?(\d+|\w+)(?:\?.*)?' # TikTok videos
         r')',
         re.IGNORECASE
     )
     
     if not url_pattern.match(url):
-        raise ValueError("❌ Invalid URL. Facebook, and Instagram videos are supported")
+        raise ValueError("❌ Invalid URL. Facebook, Instagram and TikTok videos are supported")
 
     # Platform-specific format selection
     #if "youtube.com" in url.lower() or "youtu.be" in url.lower():
         format_spec = 'bestvideo[ext=mp4][vcodec^=avc1][height<=480]+bestaudio/best'  # YouTube optimized
     if "instagram.com" in url.lower() or "instagr.am" in url.lower():
-        format_spec = 'best[ext=mp4]/bestvideo+bestaudio'  # Instagram specific handling
-    else:  # Facebook
-        format_spec = '(bestvideo[vcodec^=avc1][height<=720]+bestaudio)/best'  # Facebook optimized
+        format_spec = 'best[ext=mp4]/bestvideo+bestaudio'  # Instagram
+    elif "tiktok.com" in url.lower() or "vm.tiktok.com" in url.lower() or "vt.tiktok.com" in url.lower():
+        format_spec = 'bestvideo[ext=mp4][vcodec^=avc1][height<=720]+bestaudio/best'  # TikTok
+    else:  # Facebook (or others)
+        format_spec = '(bestvideo[vcodec^=avc1][height<=720]+bestaudio)/best'
 
     MAX_SIZE_MB = 45
     MAX_SIZE_BYTES = MAX_SIZE_MB * 1_000_000
