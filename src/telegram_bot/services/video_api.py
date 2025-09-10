@@ -4,7 +4,7 @@ import logging
 import tempfile
 from yt_dlp import YoutubeDL, DownloadError
 # Import the configured supabase client from the config module
-import config
+from .. import config
 
 logger = logging.getLogger(__name__)
 

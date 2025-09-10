@@ -5,6 +5,8 @@ import telebot
 from dotenv import load_dotenv
 from supabase import Client
 
+logger = logging.getLogger(__name__)
+
 # Load environment variables from a .env file at the very beginning.
 load_dotenv()
 
@@ -18,6 +20,7 @@ def setup_logging():
         format='%(asctime)s | %(levelname)-8s | %(name)s | %(message)s',
         datefmt='%Y-%m-%d %H:%M:%S',
         stream=sys.stdout,
+        force=True
     )
     # Silence overly verbose libraries
     logging.getLogger('telebot').setLevel(logging.ERROR)
@@ -54,9 +57,9 @@ SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 if SUPABASE_URL and SUPABASE_KEY:
     supabase = Client(SUPABASE_URL, SUPABASE_KEY)
-    logging.info("Supabase client initialized.")
+    logger.info("Supabase client initialized.")
 else:
-    logging.warning("Supabase credentials not found. Cookie-related functions will be unavailable.")
+    logger.warning("Supabase credentials not found. Cookie-related functions will be unavailable.")
 
 # Initialize Telegram Bot (singleton instance)
 bot = telebot.TeleBot(str(BOT_TOKEN))

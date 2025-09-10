@@ -2,9 +2,10 @@ import os
 import sys
 import logging
 
-# --- Setup ---
-# This script should be run from the root of your project directory
-# so it can find the 'config' module and the 'cookies.txt' file.
+# ========== Setup ==========
+# Add the src directory to the Python path to find the telegram_bot package.
+project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.join(project_root, 'src'))
 
 # Suppress verbose logs from libraries unless there's an issue
 logging.basicConfig(level=logging.WARNING)
@@ -12,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 try:
     # Import the initialized supabase client from your main config
-    from config import supabase
+    from telegram_bot.config import supabase
 except ImportError:
     print("\nERROR: Could not import 'config.py'.")
     print("Please make sure you are running this script from your project's root directory.")
@@ -21,7 +22,7 @@ except Exception as e:
     print(f"\nAn unexpected error occurred during import: {e}")
     sys.exit(1)
 
-# --- Configuration ---
+# ========== Configuration ==========
 # Define the table and row details here for clarity
 TABLE_NAME = "cookies"
 # This is the column that uniquely identifies the row (like a primary key or unique column)

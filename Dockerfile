@@ -11,6 +11,8 @@ RUN apt-get update && \
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY . .
+COPY src/ /workspace/src/
 
-CMD ["python", "bot.py"]
+ENV PYTHONPATH=/workspace/src
+
+CMD ["python", "-m" , "telegram_bot.main"]
