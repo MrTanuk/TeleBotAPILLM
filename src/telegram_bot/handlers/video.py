@@ -1,6 +1,4 @@
 import logging
-import telebot
-
 from .. import config
 from ..services import video_api
 from . import helper

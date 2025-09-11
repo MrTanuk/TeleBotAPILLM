@@ -81,15 +81,15 @@ def use_get_api_llm(bot, message, user_text, is_group=False):
         )
         
         # Send response and update history
-        bot.reply_to(message, ai_response, parse_mode="markdown")
+        return bot.reply_to(message, ai_response, parse_mode="markdown")
         response_history[user_key]['conversation'].append({"role": "assistant", "content": ai_response})
 
     except (KeyError, ValueError, ConnectionError, RuntimeError) as e:
-        bot.reply_to(message, str(e))
+        return bot.reply_to(message, str(e))
     except telebot.apihelper.ApiTelegramException as e:
         if "Can't find end of the entity starting" in str(e):
             return bot.reply_to(message, ai_response) # Send as plain text if markdown fails
         logger.error("Telegram API Error: %s", e)
     except Exception as e:
         logger.error("Unexpected error in use_get_api_llm: %s", e, exc_info=True)
-        bot.reply_to(message, "🚨 An unexpected error occurred. Please try again.")
+        return bot.reply_to(message, "🚨 An unexpected error occurred. Please try again.")

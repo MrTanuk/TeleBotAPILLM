@@ -2,7 +2,6 @@ import logging
 import telebot
 
 from .. import config
-from .ai import use_get_api_llm
 from . import helper
 
 def register_handlers(bot):
