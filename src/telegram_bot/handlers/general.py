@@ -4,6 +4,8 @@ import telebot
 from .. import config
 from . import helper
 
+logger = logging.getLogger(__name__)
+
 def register_handlers(bot):
     """Sets up all the message handlers for the bot."""
     # Decorators now use the `config.bot` instance
@@ -15,15 +17,11 @@ def register_handlers(bot):
         telebot.types.BotCommand("/dl", "Download a video")
     ])
 
-    @bot.message_handler(commands=["start"])
-    def send_start(message):
-        if not helper.is_valid_command(message): return
-        config.bot.reply_to(message, "Welcome to Mario Kart")
-
-    @bot.message_handler(commands=["help"])
-    def send_help(message):
+    @bot.message_handler(commands=["start", "help"])
+    def send_start_help(message):
         if not helper.is_valid_command(message): return
         help_text = (
+            "Send voice message to ask AI and get a respond\n\n"
             "🤖 **Available Commands:**\n\n"
             "/start - Greet the bot\n"
             "/help - Show this help message\n"
@@ -36,10 +34,10 @@ def register_handlers(bot):
             "**TikTok**\n\n"
             f"In groups, commands must be addressed to me (e.g., `/ask@{config.BOT_NAME}`)."
         )
-        config.bot.reply_to(message, help_text, parse_mode="markdown")
+        bot.reply_to(message, help_text, parse_mode="markdown")
 
 
     @bot.message_handler(content_types=['new_chat_members'])
     def handle_new_users(message):
         for new_user in message.new_chat_members:
-            config.bot.send_message(message.chat.id, f'Welcome, {new_user.first_name}! I hope you enjoy this group 🎉.')
+            bot.send_message(message.chat.id, f'Welcome, {new_user.first_name}! I hope you enjoy this group 🎉.')

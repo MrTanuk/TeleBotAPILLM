@@ -5,6 +5,7 @@ from ..services.speech_to_text import speech
 
 logger = logging.getLogger(__name__)
 
+
 def register_handlers(bot):
     @bot.message_handler(content_types=["voice"])
     def speech_voice(message):
