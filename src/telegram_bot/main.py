@@ -3,7 +3,7 @@ import logging
 from flask import Flask, request
 import telebot
 from . import config
-from .handlers import general, ai, video
+from .handlers import general, ai, video, audio
 
 # ========== Initial App Setup ==========
 app = Flask(__name__)
@@ -13,6 +13,7 @@ def setup_bot_handlers():
     general.register_handlers(config.bot)
     ai.register_handlers(config.bot)
     video.register_handlers(config.bot)
+    audio.register_handlers(config.bot)
 
 # ========== Flask Routes for Webhook ==========
 @app.route('/')
