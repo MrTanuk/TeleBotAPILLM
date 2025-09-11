@@ -16,15 +16,19 @@ def register_handlers(bot):
             url = args.split()[0].strip()
             
             bot.send_chat_action(message.chat.id, 'upload_video')
-            video = video_api.download_video(url)
-            
-            config.bot.send_video(
-                chat_id=message.chat.id,
-                video=video,
-                reply_to_message_id=message.message_id,
-                supports_streaming=True,
-                timeout=120
-            )
+            video_path = video_api.download_video(url)
+
+            with open(video_path, 'rb') as video_file:
+                config.bot.send_video(
+                    chat_id=message.chat.id,
+                    video=video_file,
+                    reply_to_message_id=message.message_id,
+                    supports_streaming=True,
+                    timeout=120
+                )
+
+            import os
+            os.remove(video_path)
         except IndexError:
             bot.reply_to(message, "Please provide a URL after the command.\nExample: `/dl https://...`")
         except (ValueError, RuntimeError, Exception) as e:

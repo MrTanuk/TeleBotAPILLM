@@ -1,15 +1,22 @@
 import os
 import re
+import time
 import logging
 import tempfile
 from yt_dlp import YoutubeDL, DownloadError
 # Import the configured supabase client from the config module
 from .. import config
 
+_cookie_cache = {"data": None, "timestamp": 0}
+
 logger = logging.getLogger(__name__)
 
 def get_cookies_from_supabase():
     """Fetches cookie data from the Supabase database."""
+    if _cookie_cache["data"] and (time.time() - _cookie_cache["timestamp"] < 3600):
+        logger.info("Cookies loaded successfully from cache.")
+        return _cookie_cache["data"]
+
     if not config.supabase:
         logger.warning("Supabase is not configured. Cannot fetch cookies.", exc_info=True)
         return None
@@ -17,7 +24,13 @@ def get_cookies_from_supabase():
         response = config.supabase.table("cookies").select("cookies_data").eq("name_media", "Youtube/Instagram").single().execute()
         if response.data and "cookies_data" in response.data:
             logger.info("Cookies loaded successfully from Supabase.")
-            return response.data["cookies_data"]
+            cookie_data = response.data["cookies_data"]
+            
+            # Almacena en caché el nuevo resultado
+            _cookie_cache["data"] = cookie_data
+            _cookie_cache["timestamp"] = time.time()
+            
+            return cookie_data
         logger.warning("No cookies found for 'Youtube/Instagram' in Supabase.", exc_info=True)
         return None
     except Exception as e:
@@ -111,9 +124,7 @@ def download_video(url):
                         f"{MAX_SIZE_MB}MB limit)"
                     )
 
-                # Read the file's bytes and return them
-                with open(filename, 'rb') as f:
-                    return f.read()
+                return filename
 
     except DownloadError as e:
         error_msg = str(e).lower()
