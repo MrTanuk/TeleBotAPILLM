@@ -2,6 +2,7 @@
 import telebot
 from ..config import BOT_NAME
 
+
 def is_valid_command(message):
     """Differentiates commands intended for this bot from others in a group."""
     command = telebot.util.extract_command(message.text)

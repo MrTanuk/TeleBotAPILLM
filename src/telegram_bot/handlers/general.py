@@ -14,7 +14,9 @@ def register_handlers(bot):
         telebot.types.BotCommand("/help", "Show all commands"),
         telebot.types.BotCommand("/ask", "Ask a question"),
         telebot.types.BotCommand("/clear", "Clear conversation history"),
-        telebot.types.BotCommand("/dl", "Download a video")
+        telebot.types.BotCommand("/dl", "Download a video"),
+        telebot.types.BotCommand("/tl_es_en", "Translate text from spanish to english"),
+        telebot.types.BotCommand("/tl_en_es", "Translate text from english to spanish")
     ])
 
     @bot.message_handler(commands=["start", "help"])
@@ -27,6 +29,8 @@ def register_handlers(bot):
             "/help - Show this help message\n"
             "/ask `[question]` - Start or continue a conversation\n"
             "/clear - Clear the conversation history\n"
+            "/tl\_en\_es - Type to translte from english to spanish\n"
+            "/tl\_es\_en - Type to translte from spanish to english\n"
             "/dl `[url]` - Download a video from:\n"
             "**Youtube**\n"
             "**Instagram**\n"
