@@ -2,7 +2,6 @@ import logging
 
 from ..handlers.ai import use_get_api_llm
 from ..services.speech_to_text import speech
-from . import helper
 
 logger = logging.getLogger(__name__)
 
@@ -10,8 +9,6 @@ logger = logging.getLogger(__name__)
 def register_handlers(bot):
     @bot.message_handler(content_types=["voice"])
     def speech_voice(message):
-        if not helper.is_valid_command(message): return
-
         try:
             # Get audio file information
             audio_id = message.voice.file_id
