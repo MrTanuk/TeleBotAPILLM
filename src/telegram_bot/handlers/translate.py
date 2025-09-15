@@ -7,7 +7,7 @@ from . import helper
 logger = logging.getLogger(__name__)
 
 def register_handlers(bot):
-    @bot.message_handler(commands=["tl_es_en", "tl_en_es"])
+    @bot.message_handler(commands=["es_en", "en_es"])
     def translate_es_en(message):
         if not helper.is_valid_command(message): return
         
