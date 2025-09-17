@@ -7,7 +7,7 @@ logger = logging.getLogger(__name__)
 
 
 def register_handlers(bot):
-    @bot.message_handler(content_types=["voice"])
+    @bot.message_handler(chat_types=["private"], content_types=["voice"])
     def speech_voice(message):
         try:
             # Get audio file information
