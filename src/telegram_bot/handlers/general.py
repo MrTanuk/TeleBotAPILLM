@@ -23,7 +23,7 @@ def register_handlers(bot):
     def send_start_help(message):
         if not helper.is_valid_command(message): return
         help_text = (
-            "Send voice message to ask AI and get a respond\n\n"
+            "Send voice message to ask AI and get a respond (only in private)\n\n"
             "🤖 **Available Commands:**\n\n"
             "/start - Greet the bot\n"
             "/help - Show this help message\n"
