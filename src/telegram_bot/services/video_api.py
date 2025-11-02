@@ -42,19 +42,19 @@ def download_video(url):
     url_pattern = re.compile(
         r'^(https?://)?(?:www\.)?'
         r'(?:'
-        r'(?:youtube\.com/(?:watch\?v=|shorts/)|youtu\.be/)[\w\-]+|'
+        # r'(?:youtube\.com/(?:watch\?v=|shorts/)|youtu\.be/)[\w\-]+|'
         r'facebook\.com|fb\.watch|instagram\.com|instagr\.am|tiktok\.com|vm\.tiktok\.com|vt\.tiktok\.com'
         r')', re.IGNORECASE
     )
     if not url_pattern.match(url):
         raise ValueError("❌ Invalid URL. Supported sites: YouTube, Facebook, Instagram, TikTok.")
 
-    is_youtube = "youtube.com" in url.lower() or "youtu.be" in url.lower()
+    # is_youtube = "youtube.com" in url.lower() or "youtu.be" in url.lower()
     is_instagram = "instagram.com" in url.lower() or "instagr.am" in url.lower()
 
-    if is_youtube:
-        format_spec = 'bestvideo[ext=mp4][vcodec^=avc1][height<=480]+bestaudio/best'  # YouTube optimized
-    elif is_instagram:
+    # if is_youtube:
+    #     format_spec = 'bestvideo[ext=mp4][vcodec^=avc1][height<=480]+bestaudio/best'  # YouTube optimized
+    if is_instagram:
         format_spec = 'best[ext=mp4]/bestvideo+bestaudio'
     elif "tiktok.com" in url.lower() or "vm.tiktok.com" in url.lower():
         format_spec = 'bestvideo[ext=mp4][vcodec^=avc1][height<=720]+bestaudio/best'  # TikTok
@@ -92,7 +92,7 @@ def download_video(url):
                 },
             }
         
-            if is_youtube or is_instagram:
+            if is_instagram:
                 cookie_data = get_cookies_from_supabase()
                 if cookie_data:
                     with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.txt', encoding='utf-8') as tmp_cookie_file:

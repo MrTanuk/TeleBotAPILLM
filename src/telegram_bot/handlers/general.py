@@ -32,7 +32,7 @@ def register_handlers(bot):
             "/en\_es - Type to translte from english to spanish\n"
             "/es\_en - Type to translte from spanish to english\n"
             "/dl `[url]` - Download a video from:\n"
-            "**Youtube**\n"
+            # "**Youtube**\n"
             "**Instagram**\n"
             "**Facebook**\n"
             "**TikTok**\n\n"

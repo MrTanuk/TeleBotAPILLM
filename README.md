@@ -11,9 +11,9 @@ A powerful and versatile Telegram bot that integrates a multi-provider conversat
   - Handles direct messages and group mentions seamlessly.
 
 - **🎬 Video & Audio Downloader:**
-  - Downloads videos from **YouTube**, **Instagram**, **Facebook**, and **TikTok**.
+  - Downloads videos from  **Instagram**, **Facebook**, and **TikTok**.
   - Utilizes `yt-dlp` for efficient and reliable downloads.
-  - Supports cookie-based authentication for downloading private/age-restricted content from YouTube and Instagram.
+  - Supports cookie-based authentication for downloading private/age-restricted content from Instagram.
   - Optimizes video format and quality for mobile devices.
 
 - **🎤 Speech-to-Text:**
@@ -33,11 +33,11 @@ A powerful and versatile Telegram bot that integrates a multi-provider conversat
   - Detailed logging for easy debugging.
   - Includes a script to update downloader cookies in a Supabase database.
 
-## 平台支援
+## Features
 
 | Feature             | Supported Platforms                               |
 | ------------------- | ------------------------------------------------- |
-| **Video Downloader**| YouTube, Instagram, Facebook, TikTok              |
+| **Video Downloader**| Instagram, Facebook, TikTok              |
 | **AI Providers**    | Google Gemini, OpenAI, DeepSeek                   |
 | **Speech-to-Text**  | Google Speech Recognition                         |
 
@@ -49,7 +49,7 @@ A powerful and versatile Telegram bot that integrates a multi-provider conversat
 | `/help`        | Display the list of available commands.           | `/help`                                           |
 | `/ask [text]`  | Ask a question to the AI assistant.               | `/ask What is the capital of Japan?`              |
 | `/clear`       | Clear the current conversation history with the AI. | `/clear`                                          |
-| `/dl [url]`    | Download a video from a supported platform.       | `/dl https://www.youtube.com/watch?v=...`         |
+| `/dl [url]`    | Download a video from a supported platform.       | `/dl https://www.instagram.com/watch?v=...`         |
 | `/es_en [text]`| Translate text from Spanish to English.           | `/es_en Hola, ¿cómo estás?`                       |
 | `/en_es [text]`| Translate text from English to Spanish.           | `/en_es Hello, how are you?`                      |
 
@@ -150,7 +150,7 @@ A `Dockerfile` is included for easy containerization.
 
 ### Updating Cookies for Video Downloader
 
-To download private or age-restricted content from YouTube and Instagram, you need to provide cookies.
+To download private or age-restricted content from and Instagram, you need to provide cookies.
 
 1.  Get your browser's cookies for the required sites and save them in a file named `cookies.txt` in the root of the project.
 2.  Run the `update_cookies.py` script:
