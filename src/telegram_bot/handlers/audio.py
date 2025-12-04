@@ -36,7 +36,7 @@ async def handle_voice(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return
 
         # Confirm to user what the bot understood
-        await update.message.reply_text(f"🎤 *Transcription:* _{transcribed_text}_", parse_mode="Markdown")
+        await update.message.reply_text(f"🎤 *Transcription:* _{transcribed_text}_", parse_mode="HTML")
 
         # 4. Send to AI
         # Reusing the function you already wrote in ai.py

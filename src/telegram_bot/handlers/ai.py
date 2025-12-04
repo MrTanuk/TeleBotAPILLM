@@ -109,7 +109,7 @@ async def process_ai_interaction(update: Update, context: ContextTypes.DEFAULT_T
         # 5. Save response and send
         conversation.append({"role": "assistant", "content": ai_response})
         
-        await update.message.reply_text(ai_response, parse_mode="Markdown")
+        await update.message.reply_text(ai_response, parse_mode="HTML")
 
     except Exception as e:
         logger.error("Error in AI handler: %s", e, exc_info=True)
