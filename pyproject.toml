@@ -1,0 +1,30 @@
+[project]
+name = "telebotapillm"
+version = "0.1.0"
+description = ""
+authors = [
+    {name = "MrTanuk",email = "louismario.rr@gmail.com"}
+]
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "python-telegram-bot (>=22.5,<23.0)",
+    "fastapi (>=0.123.5,<0.124.0)",
+    "uvicorn (>=0.38.0,<0.39.0)",
+    "httpx (>=0.28.1,<0.29.0)",
+    "python-dotenv (>=1.2.1,<2.0.0)",
+    "supabase (>=2.25.0,<3.0.0)",
+    "yt-dlp (>=2025.11.12,<2026.0.0)",
+    "speechrecognition (>=3.14.4,<4.0.0)",
+    "pydub (>=0.25.1,<0.26.0)"
+]
+
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry.group.dev.dependencies]
+black = "^25.11.0"
+isort = "^7.0.0"
+

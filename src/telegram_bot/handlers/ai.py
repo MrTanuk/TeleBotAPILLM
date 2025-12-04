@@ -1,98 +1,120 @@
 import logging
-from datetime import datetime, timedelta, timezone
-import telebot
+from datetime import datetime, timezone
+from telegram import Update, constants
+from telegram.ext import ContextTypes
 
 from .. import config
 from ..services import llm_api
 
-from . import helper
-
 logger = logging.getLogger(__name__)
-response_history = {}
 
-def register_handlers(bot):
-    @bot.message_handler(commands=["clear"])
-    def clear_history(message):
-        if not helper.is_valid_command(message): return
-        key = (message.chat.id, message.from_user.id)
-        if key in response_history:
-            del response_history[key]
-        bot.reply_to(message, "♻️ Conversation history has been cleared.")
+# --- Commands ---
 
-    # Handler for /ask command (works in all chat types)
-    @bot.message_handler(commands=["ask"])
-    def handle_ask(message):
-        if not helper.is_valid_command(message): return
-        question = helper.extract_arguments(message)
-        if not question:
-            bot.reply_to(message, "Please ask a question after the `/ask` command.")
-            return
-        is_group = message.chat.type in ["group", "supergroup"]
-        use_get_api_llm(bot, message, question, is_group=is_group)
+async def clear_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Clears the conversation history."""
+    # context.chat_data is a persistent dictionary in memory for this chat
+    context.chat_data['conversation'] = []
+    context.chat_data['last_active'] = None
+    await update.message.reply_text("♻️ Conversation history has been cleared.")
 
-    # Handler for direct messages in private chat (no command needed)
-    @bot.message_handler(chat_types=["private"], content_types=["text"], func=lambda msg: not msg.text.startswith('/'))
-    def handle_private_text(message):
-        use_get_api_llm(bot, message, message.text, is_group=False)
+async def ask_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handles the /ask command, supporting replies to other messages."""
+    
+    # 1. Text written by User B (who invokes the command)
+    user_instruction = " ".join(context.args) if context.args else ""
+    
+    # 2. Text from User A (the replied message)
+    reply_content = ""
+    if update.message.reply_to_message:
+        # Could be normal text or caption (text under photo/video)
+        if update.message.reply_to_message.text:
+            reply_content = update.message.reply_to_message.text
+        elif update.message.reply_to_message.caption:
+            reply_content = update.message.reply_to_message.caption
 
-# --- Core Logic Functions ---
-def use_get_api_llm(bot, message, user_text, is_group=False):
-    """Handles the logic of sending a prompt to the LLM and replying to the user."""
+    # 3. Combination Logic
+    final_prompt = ""
+    
+    if reply_content and user_instruction:
+        # Case: Replying with instruction ("Summarize", "Translate", "Opinion")
+        final_prompt = f"Original message context: '{reply_content}'\n\nMy instruction: {user_instruction}"
+    elif reply_content and not user_instruction:
+        # Case: Just /ask replying to a message
+        final_prompt = f"Analyze and respond to this message: '{reply_content}'"
+    elif user_instruction:
+        # Case: Normal use without replying
+        final_prompt = user_instruction
+    else:
+        # Case: No text and no reply
+        await update.message.reply_text("Please write a question or reply to a message with `/ask`.")
+        return
+
+    # Send to core logic
+    await process_ai_interaction(update, context, final_prompt)
+
+async def handle_private_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handles text messages in private chats without commands."""
+    # Filter if it is a command (good practice even if PTB filters it)
+    if update.message.text.startswith('/'):
+        return
+    await process_ai_interaction(update, context, update.message.text)
+
+
+# --- Core Logic ---
+
+async def process_ai_interaction(update: Update, context: ContextTypes.DEFAULT_TYPE, user_text: str):
+    """
+    Main function to manage AI interaction: history, API call, and response.
+    """
     try:
-        # In groups, ignore messages that are not explicit commands or replies to the bot
-        if is_group and message.reply_to_message is None:
-            if not helper.is_valid_command(message):
-                return
+        chat_id = update.effective_chat.id
         
-        bot.send_chat_action(message.chat.id, "typing")
-        user_key = (message.chat.id, message.from_user.id)
+        # 1. Visual Feedback (Typing...)
+        await context.bot.send_chat_action(chat_id=chat_id, action=constants.ChatAction.TYPING)
+
+        # 2. History Management using context.chat_data
+        # Initialize if not exists
+        if 'conversation' not in context.chat_data:
+            context.chat_data['conversation'] = [{"role": "system", "content": config.SYSTEM_MESSAGE}]
+        
+        # Check inactivity time (1 hour)
+        last_active = context.chat_data.get('last_active')
         current_time = datetime.now(timezone.utc)
         
-        # Check if history exists and needs reset
-        history_data = response_history.get(user_key)
-        if history_data and (current_time - history_data['last_active'] > timedelta(hours=1)):
-            response_history.pop(user_key, None)
-            history_data = None # Force re-initialization
-            bot.send_message(message.chat.id, "🕒 Chat history has been reset due to 1 hour of inactivity.")
+        if last_active and (current_time - last_active).total_seconds() > 3600:
+            context.chat_data['conversation'] = [{"role": "system", "content": config.SYSTEM_MESSAGE}]
+            await update.message.reply_text("🕒 Chat history reset due to inactivity.")
+
+        # 3. Update history
+        context.chat_data['last_active'] = current_time
+        conversation = context.chat_data['conversation']
+        conversation.append({"role": "user", "content": user_text})
         
-        # Initialize new user history if needed
-        if not history_data:
-            response_history[user_key] = {
-                'conversation': [{"role": "system", "content": config.SYSTEM_MESSAGE}],
-                'last_active': current_time
-            }
+        # Limit history (last 25 messages + system prompt)
+        # Keep [0] (System) and the last 25
+        if len(conversation) > 26:
+            conversation = [conversation[0]] + conversation[-25:]
+            context.chat_data['conversation'] = conversation
 
-        # Update last activity timestamp and add new message
-        response_history[user_key]['last_active'] = current_time
-        response_history[user_key]['conversation'].append({"role": "user", "content": user_text})
-
-        # Maintain conversation history limit
-        MAX_HISTORY = 25
-        response_history[user_key]['conversation'] = response_history[user_key]['conversation'][-MAX_HISTORY:]
-
-        # Generate AI response using current conversation context
-        ai_response = llm_api.get_api_llm(
-            response_history[user_key]['conversation'],
+        # 4. ASYNCHRONOUS API Call (Using the await from the new service)
+        ai_response = await llm_api.get_api_llm(
+            conversation,
             config.API_TOKEN,
             config.API_URL,
             config.LLM_MODEL,
             config.PROVIDER,
             config.MAX_OUTPUT_TOKENS
         )
-        
-        # Send response and update history
-        sent_message = bot.reply_to(message, ai_response, parse_mode="markdown")
-        response_history[user_key]['conversation'].append({"role": "assistant", "content": ai_response})
-        return sent_message
 
-    except (KeyError, ValueError, ConnectionError, RuntimeError) as e:
-        return bot.reply_to(message, str(e))
-    except telebot.apihelper.ApiTelegramException as e:
-        if "Can't find end of the entity starting" in str(e):
-            sent_message = bot.reply_to(message, ai_response)
-            response_history[user_key]['conversation'].append({"role": "assistant", "content": ai_response})
-            return sent_message
-        logger.error("Telegram API Error: %s", e)
+        # 5. Save response and send
+        conversation.append({"role": "assistant", "content": ai_response})
+        
+        await update.message.reply_text(ai_response, parse_mode="Markdown")
+
     except Exception as e:
-        logger.error("Unexpected error in use_get_api_llm: %s", e, exc_info=True)
-        return bot.reply_to(message, "🚨 An unexpected error occurred. Please try again.")
+        logger.error("Error in AI handler: %s", e, exc_info=True)
+        # If markdown fails, try plain text
+        try:
+            await update.message.reply_text(str(e)) # Send error or plain response
+        except:
+            await update.message.reply_text("🚨 An error occurred processing your request.")

@@ -1,175 +1,212 @@
-# 🤖 Telegram AI & Multimedia Bot
+# 🚀 Async AI & Media Telegram Bot
 
-A powerful and versatile Telegram bot that integrates a multi-provider conversational AI, a comprehensive video downloader, speech-to-text transcription, and translation capabilities.
+![Python](https://img.shields.io/badge/Python-3.11%2B-blue?logo=python)
+![FastAPI](https://img.shields.io/badge/FastAPI-0.109%2B-009688?logo=fastapi)
+![Telegram](https://img.shields.io/badge/Telegram-Bot%20API-2CA5E0?logo=telegram)
+![Poetry](https://img.shields.io/badge/Poetry-Dependency%20Manager-blueviolet?logo=poetry)
+![Docker](https://img.shields.io/badge/Docker-Ready-2496ED?logo=docker)
 
-## ✨ Features
+A high-performance, asynchronous Telegram bot built with **FastAPI** and **Python-Telegram-Bot (v20+)**. 
 
-- **🧠 Conversational AI:**
-  - Supports multiple LLM providers: **Google Gemini**, **OpenAI**, and **DeepSeek**.
-  - Maintains conversation history (last 25 messages) for contextual responses.
-  - Automatically resets conversation after 1 hour of inactivity to ensure privacy.
-  - Handles direct messages and group mentions seamlessly.
+This bot features concurrent processing for heavy tasks (video downloading, audio transcription) and seamless integration with multiple LLM providers (Google Gemini, OpenAI, DeepSeek).
 
-- **🎬 Video & Audio Downloader:**
-  - Downloads videos from  **Instagram**, **Facebook**, and **TikTok**.
-  - Utilizes `yt-dlp` for efficient and reliable downloads.
-  - Supports cookie-based authentication for downloading private/age-restricted content from Instagram.
-  - Optimizes video format and quality for mobile devices.
+## ✨ Key Features
 
-- **🎤 Speech-to-Text:**
-  - Transcribes voice messages into text using Google Speech Recognition.
-  - Allows users to interact with the AI assistant using their voice.
+- **⚡ Asynchronous & Concurrent:**
+  - Built on `FastAPI` (ASGI) for high-throughput webhook handling.
+  - Heavy tasks (video downloads, speech-to-text) run in non-blocking threads, keeping the bot responsive.
+  
+- **🧠 Advanced AI Integration:**
+  - Supports **Google Gemini**, **OpenAI**, and **DeepSeek**.
+  - **Context Aware:** Remembers conversation history per chat.
+  - **Smart Replies:** Can analyze replied messages (e.g., reply to a long text with `/ask Summarize this`).
 
-- **🌐 Translation:**
-  - Translates text between **English** and **Spanish** using the configured LLM.
+- **🎬 Multimedia Downloader:**
+  - Downloads videos from **Instagram**, **TikTok**, **Facebook**, and **YouTube**.
+  - Uses `yt-dlp` with cookie support (via Supabase) for age-restricted/private content.
+  - Automatic video compression for Telegram limits.
 
-- **👥 Group & Private Chat Support:**
-  - Fully functional in both private chats and group environments.
-  - Responds to commands addressed to it in groups (e.g., `/ask@YourBotName`).
-  - Welcomes new members in group chats.
+- **🗣️ Speech-to-Text:**
+  - Transcribes voice notes into text automatically.
+  - Users can talk to the AI using voice messages.
 
-- **🔧 Advanced Configuration:**
-  - All settings are managed via a `.env` file for easy setup.
-  - Detailed logging for easy debugging.
-  - Includes a script to update downloader cookies in a Supabase database.
+- **🛡️ Smart Group Management:**
+  - **Anti-Spam Filter:** In groups, the bot ignores generic commands (`/help`). It only responds to direct mentions (`/help@MyBot`) or private chats.
 
-## Features
+## 🛠️ Tech Stack
 
-| Feature             | Supported Platforms                               |
-| ------------------- | ------------------------------------------------- |
-| **Video Downloader**| Instagram, Facebook, TikTok              |
-| **AI Providers**    | Google Gemini, OpenAI, DeepSeek                   |
-| **Speech-to-Text**  | Google Speech Recognition                         |
+- **Framework:** FastAPI + Uvicorn
+- **Bot Library:** python-telegram-bot (v20+ Async)
+- **Dependency Manager:** Poetry
+- **HTTP Client:** HTTPX (Async)
+- **Database:** Supabase (for Cookie storage)
+- **Media Processing:** yt-dlp, FFmpeg, SpeechRecognition
+
+## 🚀 Getting Started
+
+### Prerequisites
+
+- Python 3.11 or higher
+- [Poetry](https://python-poetry.org/) installed
+- FFmpeg installed on your system
+- A Telegram Bot Token
+- An API Key for your LLM provider (Google/OpenAI)
+
+### 1. Installation
+
+Clone the repository and install dependencies using Poetry:
+
+```
+git clone https://github.com/MrTanuk/TeleBotAPILLM.git
+cd TeleBotAPILLM
+
+# Install dependencies
+poetry install
+
+# Activate the virtual environment
+poetry env activate
+```
+
+### 2. Configuration
+
+Create a .env file in the root directory:
+
+```
+cp .env.example .env
+```
+
+Fill in your credentials:
+
+```bash
+    
+# --- Bot Configuration ---
+BOT_TOKEN=your_telegram_bot_token_here
+
+# --- LLM Configuration ---
+# Options provider: google, openai, deepseek
+PROVIDER=
+API_TOKEN=
+LLM_MODEL=
+# Google Base URL: https://generativelanguage.googleapis.com/v1beta/models
+API_URL=
+SYSTEM_MESSAGE="You are a helpful and sarcastic AI assistant."
+MAX_OUTPUT_TOKENS=800
+
+# --- Supabase (Optional, for Cookies) ---
+SUPABASE_URL=
+SUPABASE_KEY=
+
+# --- Hosting ---
+# 'development' (Polling) or 'production' (Webhook)
+HOSTING=development
+WEBHOOK_URL= 
+PORT=
+```
+
+### 3. Running the Bot
+
+**Development Mode (Polling):**  
+Ideal for local testing. No webhook/domain required.
+
+```bash
+poetry run python -m src.telegram_bot.main
+```
+
+**Production Mode (Webhook):**  
+Runs the FastAPI server. Requires HOSTING=production in .env.
+
+```bash
+uvicorn src.telegram_bot.main:app --host 0.0.0.0 --port 8080
+```
+
+## 🐳 Docker Deployment
+
+The project includes an optimized Dockerfile.
+
+1. **Build the image:**
+
+```
+docker build -t telegram-ai-bot .
+```
+
+2. **Run the container:**
+
+``` 
+docker run -d \
+  --env-file .env \
+  -p 8080:8080 \
+  --name my-bot \
+  telegram-ai-bot
+  ```
 
 ## 🤖 Commands
 
-| Command        | Description                                       | Example                                           |
-| -------------- | ------------------------------------------------- | ------------------------------------------------- |
-| `/start`       | Initialize the bot and show a welcome message.    | `/start`                                          |
-| `/help`        | Display the list of available commands.           | `/help`                                           |
-| `/ask [text]`  | Ask a question to the AI assistant.               | `/ask What is the capital of Japan?`              |
-| `/clear`       | Clear the current conversation history with the AI. | `/clear`                                          |
-| `/dl [url]`    | Download a video from a supported platform.       | `/dl https://www.instagram.com/watch?v=...`         |
-| `/es_en [text]`| Translate text from Spanish to English.           | `/es_en Hola, ¿cómo estás?`                       |
-| `/en_es [text]`| Translate text from English to Spanish.           | `/en_es Hello, how are you?`                      |
 
-*Note: In group chats, all commands must be directed at the bot, e.g., `/ask@YourBotName ...`*
+| Command  | Usage             | Description                                      |
+| -------- | ----------------- | ------------------------------------------------ |
+| `/start` | `/start`          | Check if the bot is alive.                       |
+| `/help`  | `/help`           | Show all commands and their functions            |
+| `/ask`   | `/ask [question]` | Ask the AI. Supports replying to other messages. |
+| `/dl`    | `/dl [question]`  | Download video from Insta/TikTok/FB/YouTube.     |
+| `/es_en` | `/es_en`          | Translate Spanish to English.                    |
+| `/en_es` | `/en_es`          | Translate English to Spanish.                    |
+| `/clear` | `/clear`          | Reset AI conversation history.                   |
+| Voice    | *Send audio*      | Transcribes audio and sends it to AI.            |
 
-## 📋 Prerequisites
+> **Note:** In groups, append the bot username (e.g., /ask@MyBotName) for the command to work.
 
-- Python 3.9+
-- [FFmpeg](https://ffmpeg.org/download.html)
-- An account with a supported LLM provider (Google, OpenAI, or DeepSeek).
-- A Telegram Bot Token from [@BotFather](https://t.me/BotFather).
-- (Optional) A Supabase account for storing cookies.
+## 📂 Project Structure
 
-## 🛠️ Installation
-
-1.  **Clone the repository:**
-    ```bash
-    git clone https://github.com/your-username/TeleBotAPILLM.git
-    cd TeleBotAPILLM
-    ```
-
-2.  **Create and activate a virtual environment:**
-    ```bash
-    python3 -m venv env
-    source env/bin/activate
-    ```
-
-3.  **Install the dependencies:**
-    ```bash
-    pip install -r requirements.txt
-    ```
-
-## ⚙️ Configuration
-
-1.  **Create a `.env` file** in the root of the project by copying the example:
-    ```bash
-    cp .env.example .env
-    ```
-
-2.  **Edit the `.env` file** with your credentials:
-
-    ```env
-    # Telegram Bot Configuration
-    BOT_TOKEN="YOUR_TELEGRAM_BOT_TOKEN"
-
-    # LLM Configuration (choose one provider)
-    PROVIDER="google"  # or "openai", "deepseek"
-    API_TOKEN="YOUR_LLM_API_TOKEN"
-    LLM_MODEL="gemini-pro" # e.g., "gpt-4", "deepseek-coder"
-    API_URL="https://generativelanguage.googleapis.com/v1beta/models" # Adjust for your provider
-    SYSTEM_MESSAGE="You are a helpful AI assistant."
-    MAX_OUTPUT_TOKENS=700
-
-    # Supabase Configuration (Optional, for video downloader cookies)
-    SUPABASE_URL="YOUR_SUPABASE_URL"
-    SUPABASE_KEY="YOUR_SUPABASE_KEY"
-
-    # Hosting Configuration (for production)
-    HOSTING="development" # "production" or "development"
-    WEBHOOK_URL="https://your-domain.com" # Required for production
-    ```
-
-## 🚀 Usage
-
-### Development Mode
-
-For local development, the bot uses long polling.
-
-```bash
-python -m src.telegram_bot.main
+```
+├── src/telegram_bot/
+│   ├── handlers/        # Command logic (AI, Video, Audio)
+│   ├── services/        # External API logic (LLM, yt-dlp)
+│   ├── config.py        # Environment & Setup
+│   ├── custom_filters.py# Group vs Private logic
+│   └── main.py          # Entry point (FastAPI + Bot App)
+├── scripts/             # Utilities (Cookie updater)
+├── Dockerfile           # Production container
+├── pyproject.toml       # Poetry dependencies
+└── README.md            # Documentation
 ```
 
-### Production Mode
+## 🍪 Cookie Management
 
-For production, the bot uses webhooks, which requires a publicly accessible URL.
+To download **private** or **age-restricted** content (especially from Instagram and some YouTube videos), the bot needs valid browser cookies.
 
-1.  Set `HOSTING="production"` in your `.env` file.
-2.  Make sure `WEBHOOK_URL` is set to your public domain.
-3.  Run the bot using a production-ready WSGI server like Waitress (included):
+### 1. Export Cookies
+You need to export cookies in the **Netscape HTTP Cookie File** format.
+1. Install a browser extension like **"Get cookies.txt LOCALLY"** ([Chrome](https://chrome.google.com/webstore/detail/get-cookiestxt-locally/cclelndahbckbenkjhflccgomilekfcg) / [Firefox](https://addons.mozilla.org/en-US/firefox/addon/get-cookies-txt-locally/)).
+2. Log in to Instagram/YouTube in your browser.
+3. Open the extension and export the cookies.
+4. Save the file as `cookies.txt`.
 
-    ```bash
-    python -m src.telegram_bot.main
-    ```
+### 2. Upload to Database
+We use a smart script to upload these cookies to Supab1ase.
 
-### Docker
+**Option A: Automatic Search (Easiest)**
+The script automatically looks for `cookies.txt` in your **Downloads folder**, the project root, or the `scripts/` folder.
 
-A `Dockerfile` is included for easy containerization.
+```
+python scripts/update_cookies.py
+```
 
-1.  **Build the image:**
-    ```bash
-    docker build -t telegram-bot .
-    ```
+**Option B: Specific File**
+If your file has a different name or location:
 
-2.  **Run the container:**
-    ```bash
-    docker run -d --env-file .env --name telegram-bot-container telegram-bot
-    ```
+```
+python scripts/update_cookies.py --file /path/to/my-cookies.txt
+ ```
 
-### Updating Cookies for Video Downloader
+**Option C: CI/CD (No confirmation)**  
+To skip the "Are you sure?" prompt (useful for automated pipelines):
 
-To download private or age-restricted content from and Instagram, you need to provide cookies.
+```
+python scripts/update_cookies.py
+```
 
-1.  Get your browser's cookies for the required sites and save them in a file named `cookies.txt` in the root of the project.
-2.  Run the `update_cookies.py` script:
-    ```bash
-    python scripts/update_cookies.py
-    ```
-    This will upload the cookies to your Supabase database.
+> **Note:** The script validates the file format before uploading to ensure yt-dlp compatibility.
 
-## 📦 Dependencies
+## 📄 License
 
-Here are the main dependencies of the project:
-
-- `pyTelegramBotAPI`: Telegram Bot API wrapper.
-- `yt-dlp`: Video downloader.
-- `SpeechRecognition`: Speech-to-text conversion.
-- `pydub`: Audio manipulation.
-- `requests`: HTTP requests for LLM APIs.
-- `Flask` & `waitress`: For webhook deployment.
-- `python-dotenv`: Environment variable management.
-- `supabase`: Supabase client.
-
-For a full list of dependencies, see `requirements.txt`.
+This project is licensed under the MIT License.

@@ -1,113 +1,118 @@
 import os
 import sys
 import logging
+import argparse
+from pathlib import Path
 
-# ========== Setup ==========
-# Add the src directory to the Python path to find the telegram_bot package.
-project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-sys.path.insert(0, os.path.join(project_root, 'src'))
+# ========== Setup Environment ==========
+# Add 'src' to python path to import config
+current_dir = Path(__file__).resolve().parent
+project_root = current_dir.parent
+sys.path.insert(0, str(project_root / 'src'))
 
-# Suppress verbose logs from libraries unless there's an issue
-logging.basicConfig(level=logging.WARNING)
-logger = logging.getLogger(__name__)
+# Configure Logging
+logging.basicConfig(level=logging.INFO, format='%(message)s')
+logger = logging.getLogger("CookieUpdater")
 
 try:
-    # Import the initialized supabase client from your main config
     from telegram_bot.config import supabase
 except ImportError:
-    print("\nERROR: Could not import 'config.py'.")
-    print("Please make sure you are running this script from your project's root directory.")
-    sys.exit(1)
-except Exception as e:
-    print(f"\nAn unexpected error occurred during import: {e}")
+    logger.error("❌ ERROR: Could not import 'config.py'.")
+    logger.error("Make sure you are running this from the project root or 'scripts/' folder.")
     sys.exit(1)
 
-# ========== Configuration ==========
-# Define the table and row details here for clarity
+# ========== Constants ==========
 TABLE_NAME = "cookies"
-# This is the column that uniquely identifies the row (like a primary key or unique column)
-ID_COLUMN_NAME = "name_media" 
-ID_COLUMN_VALUE = "Youtube/Instagram"
-# This is the column where the cookie data is stored
-COOKIE_DATA_COLUMN = "cookies_data"
-COOKIE_FILENAME = "cookies.txt"
+ID_COLUMN = "name_media"
+ID_VALUE = "Youtube/Instagram" # Unique Key
+DATA_COLUMN = "cookies_data"
+DEFAULT_FILENAME = "cookies.txt"
 
-def print_header(title):
-    """Prints a simple header to the console."""
-    print("\n" + "="*50)
-    print(f" {title}")
-    print("="*50)
+def parse_arguments():
+    """Defines command line arguments."""
+    parser = argparse.ArgumentParser(description="Upload cookies.txt to Supabase for yt-dlp.")
+    parser.add_argument("-f", "--file", type=str, help="Specific path to the cookies.txt file", default=None)
+    parser.add_argument("-y", "--yes", action="store_true", help="Skip confirmation prompt")
+    return parser.parse_args()
+
+def find_cookie_file(user_path=None):
+    """
+    Smart search for the cookie file in common locations.
+    """
+    search_paths = []
+
+    # 1. User provided path
+    if user_path:
+        search_paths.append(Path(user_path))
+
+    # 2. Current Working Directory
+    search_paths.append(Path.cwd() / DEFAULT_FILENAME)
+
+    # 3. Project Root
+    search_paths.append(project_root / DEFAULT_FILENAME)
+
+    # 4. Scripts Directory
+    search_paths.append(current_dir / DEFAULT_FILENAME)
+
+    # 5. User Downloads Folder (Common export location)
+    home = Path.home()
+
+    search_paths.append(home / "Downloads" / DEFAULT_FILENAME)
+
+    logger.info("🔍 Searching for cookie file...")
+    
+    for path in search_paths:
+        if path.exists() and path.is_file():
+            return path
+            
+    return None
+
+def validate_netscape_format(content: str) -> bool:
+    """
+    Basic validation to check if it looks like a Netscape cookie file.
+    yt-dlp requires Netscape format (tab separated).
+    """
+    lines = content.splitlines()
+    if not lines:
+        return False
+
+    # Check 1: Common Header
+    if "# Netscape HTTP Cookie File" in lines[0] or "# Netscape HTTP Cookie File" in lines[1]:
+        return True
+
+    # Check 2: Heuristic - Look for 7 tab-separated columns in non-comment lines
+    valid_lines = 0
+    for line in lines:
+        if line.strip().startswith("#") or not line.strip():
+            continue
+        parts = line.split('\t')
+        if len(parts) >= 7:
+            valid_lines += 1
+            
+    return valid_lines > 0
 
 def update_cookies():
-    """
-    Reads a local cookies.txt file and uploads its content to Supabase,
-    updating the existing entry.
-    """
-    print_header("Supabase Cookie Uploader")
+    args = parse_arguments()
 
-    # 1. Check if Supabase client is available
+    # 1. Check Supabase
     if not supabase:
-        print("ERROR: Supabase client is not configured in 'config.py'.")
-        print("Please check your .env file and ensure SUPABASE_URL and SUPABASE_KEY are set.")
+        logger.error("❌ Supabase client is not configured. Check your .env file.")
         return
 
-    # 2. Check for the local cookie file
-    print(f"--> Looking for '{COOKIE_FILENAME}' in the current directory...")
-    if not os.path.exists(COOKIE_FILENAME):
-        print(f"\nERROR: File not found.")
-        print(f"Please place your '{COOKIE_FILENAME}' file in the same directory as this script.")
-        return
+    # 2. Find File
+    cookie_path = find_cookie_file(args.file)
     
-    # 3. Read the cookie file content
-    try:
-        with open(COOKIE_FILENAME, "r", encoding="utf-8") as file:
-            cookie_content = file.read()
-        
-        if not cookie_content.strip():
-            print("\nWARNING: The cookie file appears to be empty. Aborting.")
-            return
-
-        print(f"--> Successfully read '{COOKIE_FILENAME}' ({len(cookie_content)} characters).")
-    except Exception as e:
-        print(f"\nERROR: Failed to read the cookie file: {e}")
+    if not cookie_path:
+        logger.error("❌ Cookie file not found.")
+        logger.info(f"   Please place '{DEFAULT_FILENAME}' in the project root, scripts folder, or Downloads.")
+        logger.info("   Or use: python scripts/update_cookies.py --file /path/to/cookies.txt")
         return
 
-    # 4. Confirm before uploading
-    print("\nThis action will overwrite the existing cookies in the database.")
-    try:
-        confirm = input("Are you sure you want to proceed? (y/n): ").lower().strip()
-        if confirm != 'y':
-            print("\nOperation cancelled by user.")
-            return
-    except KeyboardInterrupt:
-        print("\n\nOperation cancelled by user.")
-        return
-        
-    # 5. Perform the upsert operation
-    try:
-        print("\n--> Uploading to Supabase...")
-        
-        # 'upsert' will update the row if it matches the unique ID, or create it if it doesn't.
-        # It's generally safer than a simple 'update'.
-        response = supabase.table(TABLE_NAME).upsert({
-            "id": 1,
-            ID_COLUMN_NAME: ID_COLUMN_VALUE,
-            COOKIE_DATA_COLUMN: cookie_content
-        }).execute()
-        
-        # Check if the API call was successful. A successful upsert might return
-        # data or just a success status code.
-        if (response.data or (200 <= response.status_code < 300)):
-            print("\nSUCCESS: Cookies have been successfully updated in Supabase!")
-        else:
-            print(f"\nERROR: Supabase API call failed.")
-            print(f"   Status: {response.status_code}")
-            print(f"   Details: {response.error or response.data}")
+    logger.info(f"✅ Found file at: {cookie_path}")
 
-    except Exception as e:
-        print(f"\nAn unexpected error occurred while communicating with Supabase:")
-        logger.error("Supabase communication error", exc_info=True)
-        print(f"   {e}")
-
-if __name__ == "__main__":
-    update_cookies()
+    # 3. Read and Validate
+    try:
+        content = cookie_path.read_text(encoding="utf-8")
+        
+        if not validate_netscape_format(content):
+            logger.warning("⚠️  WARNING: The file d

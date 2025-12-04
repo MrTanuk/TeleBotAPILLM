@@ -1,53 +1,62 @@
 import logging
-import telebot
-
+from telegram import Update, constants
+from telegram.ext import ContextTypes
 from ..services import llm_api
 from .. import config
-from . import helper
 
 logger = logging.getLogger(__name__)
 
+async def translate_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    Handles translation commands: /es_en (Spanish->English) and /en_es (English->Spanish).
+    Supports direct arguments or replies to messages.
+    """
+    # Clean command (/es_en@BotName -> es_en)
+    command = update.message.text.split()[0].replace('/', '').split('@')[0]
+    
+    text_to_translate = ""
 
-def register_handlers(bot):
-    @bot.message_handler(commands=["es_en", "en_es"])
-    def translate_es_en(message):
-        try:
-            if not helper.is_valid_command(message):
-                return
+    # 1. Direct arguments (/es_en Hello)
+    if context.args:
+        text_to_translate = " ".join(context.args)
+    
+    # 2. Reply to message (/es_en replying to someone)
+    elif update.message.reply_to_message:
+        original = update.message.reply_to_message
+        text_to_translate = original.text or original.caption or ""
 
-            user_text = helper.extract_arguments(message)
-            if not user_text:
-                return bot.reply_to(message, "Please, type a text to translate")
+    if not text_to_translate:
+        await update.message.reply_text("Please provide text or reply to a message to translate.")
+        return
 
-            command = str(telebot.util.extract_command(message.text))
+    # Define languages
+    lang_map = {
+        "es_en": "Spanish to English",
+        "en_es": "English to Spanish"
+    }
+    direction = lang_map.get(command, "Spanish to English")
 
-            lang_pairs = {"es_en": "Spanish to English", "en_es": "English to Spanish"}
-            lang = lang_pairs.get(command, "English to Spanish")
+    await context.bot.send_chat_action(chat_id=update.effective_chat.id, action=constants.ChatAction.TYPING)
 
-            prompt = f"Translate the following text from {lang}: {user_text}"
+    prompt = f"Translate the following text from {direction}. Output ONLY the translation:\n\n{text_to_translate}"
+    
+    messages = [
+        {"role": "system", "content": "You are a professional translator."},
+        {"role": "user", "content": prompt}
+    ]
 
-            messages_payload = [
-                {"role": "system", "content": "You are a professional translator. Respond only with the translated text and nothing else."},
-                {"role": "user", "content": prompt}
-            ]
-            
+    try:
+        # Asynchronous API Call
+        translation = await llm_api.get_api_llm(
+            messages,
+            config.API_TOKEN,
+            config.API_URL,
+            config.LLM_MODEL,
+            config.PROVIDER,
+            MAX_OUTPUT_TOKENS=800
+        )
+        await update.message.reply_text(translation)
 
-            ai_response = llm_api.get_api_llm(
-                messages_payload,
-                config.API_TOKEN,
-                config.API_URL,
-                config.LLM_MODEL,
-                config.PROVIDER,
-                800,
-            )
-            return bot.reply_to(message, ai_response, parse_mode="markdown")
-
-        except (KeyError, ValueError, ConnectionError, RuntimeError) as e:
-            return bot.reply_to(message, str(e))
-        except telebot.apihelper.ApiTelegramException as e:
-            if "Can't find end of the entity starting" in str(e):
-                return bot.reply_to(message, ai_response) # Send as plain text if markdown fails
-            logger.error("Telegram API Error: %s", e)
-        except Exception as e:
-            logger.error("Unexpected error in use_get_api_llm: %s", e, exc_info=True)
-            return bot.reply_to(message, "🚨 An unexpected error occurred. Please try again.")
+    except Exception as e:
+        logger.error(f"Translation error: {e}")
+        await update.message.reply_text(f"Error: {str(e)}")

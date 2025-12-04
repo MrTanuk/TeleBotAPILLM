@@ -1,26 +1,47 @@
 import logging
+import asyncio
+from telegram import Update, constants
+from telegram.ext import ContextTypes
 
-from ..handlers.ai import use_get_api_llm
 from ..services.speech_to_text import speech
+from .ai import process_ai_interaction
 
 logger = logging.getLogger(__name__)
 
+async def handle_voice(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handles voice notes, transcribes them, and sends the text to the AI."""
+    
+    # Visual feedback
+    await context.bot.send_chat_action(chat_id=update.effective_chat.id, action=constants.ChatAction.TYPING)
+    
+    try:
+        # 1. Get file information
+        voice = update.message.voice
+        file_id = voice.file_id
+        
+        # If too large (>20MB), better ignore to not block RAM
+        if voice.file_size > 20 * 1024 * 1024:
+            await update.message.reply_text("⚠️ Voice note too large.")
+            return
 
-def register_handlers(bot):
-    @bot.message_handler(chat_types=["private"], content_types=["voice"])
-    def speech_voice(message):
-        try:
-            # Get audio file information
-            audio_id = message.voice.file_id
-            audio_info = bot.get_file(audio_id)
+        # 2. Download file to memory (Async)
+        new_file = await context.bot.get_file(file_id)
+        file_byte_array = await new_file.download_as_bytearray()
 
-            # Download the file directly to memory
-            ogg_bytes = bot.download_file(audio_info.file_path)
+        # 3. Transcribe in a THREAD (Blocking -> Non-blocking)
+        transcribed_text = await asyncio.to_thread(speech, file_byte_array)
 
-            # Perform the transcription
-            text = speech(ogg_bytes)
-            use_get_api_llm(bot, message, text)
+        if not transcribed_text:
+            await update.message.reply_text("😓 I couldn't understand the audio.")
+            return
 
-        except Exception as e:
-            logger.error(f"Error processing audio: {str(e)}")
-            bot.reply_to(message, "An error occurred while processing the audio")
+        # Confirm to user what the bot understood
+        await update.message.reply_text(f"🎤 *Transcription:* _{transcribed_text}_", parse_mode="Markdown")
+
+        # 4. Send to AI
+        # Reusing the function you already wrote in ai.py
+        await process_ai_interaction(update, context, transcribed_text)
+
+    except Exception as e:
+        logger.error(f"Error handling voice: {e}", exc_info=True)
+        await update.message.reply_text("🚨 Error processing audio.")

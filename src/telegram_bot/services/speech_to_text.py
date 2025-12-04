@@ -5,28 +5,46 @@ from pydub import AudioSegment
 
 logger = logging.getLogger(__name__)
 
-
 def speech(ogg_bytes):
-    audio = AudioSegment.from_ogg(io.BytesIO(ogg_bytes))
-
-    audio = audio.set_frame_rate(16000).set_channels(1)
-
-    wav_bytes = io.BytesIO()
-    audio.export(wav_bytes, format="wav")
-    wav_bytes.seek(0)
-
-    r = sr.Recognizer()
-
+    """
+    Converts OGG bytes (from Telegram) to text.
+    
+    Note: This is a BLOCKING function (CPU bound + Synchronous Network request).
+    It must be run in a separate thread.
+    """
     try:
+        # 1. Convert OGG (Telegram) to WAV (Compatible with SpeechRecognition)
+        # Pydub handles bytes in memory
+        audio = AudioSegment.from_ogg(io.BytesIO(ogg_bytes))
+        
+        # Adjust for better recognition (16kHz mono is standard for voice)
+        audio = audio.set_frame_rate(16000).set_channels(1)
+
+        wav_bytes = io.BytesIO()
+        audio.export(wav_bytes, format="wav")
+        wav_bytes.seek(0)
+
+        # 2. Recognition process
+        r = sr.Recognizer()
         with sr.AudioFile(wav_bytes) as source:
-            r.adjust_for_ambient_noise(source)
+            # Optional: Calibrate ambient noise briefly
+            # r.adjust_for_ambient_noise(source, duration=0.5) 
             audio_data = r.record(source)
 
-        text = r.recognize_google(audio_data, language="es-ES")
+        # Call to Google API (Free/Limited)
+        # Using "es-ES" as default, you might want to change this to "en-US" or make it dynamic
+        text = r.recognize_google(audio_data, language="en-US") 
         return text
+
     except sr.UnknownValueError:
-        return "Could not understand audio"
+        return None # Audio could not be understood
     except sr.RequestError as e:
-        return f"Error connecting to the recognition service: {e}"
+        logger.error(f"SpeechRecognition service error: {e}")
+        raise RuntimeError("Error connecting to speech service.")
+    except Exception as e:
+        logger.error(f"Error processing audio: {e}", exc_info=True)
+        raise e
     finally:
-        wav_bytes.close()
+        # Explicitly close the byte buffer (good practice)
+        if 'wav_bytes' in locals():
+            wav_bytes.close()

@@ -1,51 +1,145 @@
-import os
 import logging
-from flask import Flask, request
-import telebot
+import warnings
+import uvicorn
+from contextlib import asynccontextmanager
+from fastapi import FastAPI, Request, Response
+from telegram import Update
+from telegram.ext import ApplicationBuilder, Application, CommandHandler, MessageHandler, filters, ContextTypes
+
 from . import config
-from .handlers import general, ai, video, audio, translate
+# Import handlers
+from .handlers import ai, video, audio, translate
+from .custom_filters import TARGETED_OR_PRIVATE
 
-# ========== Initial App Setup ==========
-app = Flask(__name__)
+# Logger setup
+config.setup_logging()
+logger = logging.getLogger(__name__)
 
-def setup_bot_handlers():
-    """Import and register all handlers of their correctly dirs"""
-    general.register_handlers(config.bot)
-    ai.register_handlers(config.bot)
-    video.register_handlers(config.bot)
-    audio.register_handlers(config.bot)
-    translate.register_handlers(config.bot)
+# Filter syntax warnings from pydub due to Python version strictness
+warnings.filterwarnings("ignore", category=SyntaxWarning, module="pydub")
 
-# ========== Flask Routes for Webhook ==========
-@app.route('/')
-def health_check():
-    return "🤖 Bot is active.", 200
+# --- 1. Define Basic Handlers ---
+async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handles the /start command."""
+    user = update.effective_user.first_name
+    await update.message.reply_text(f"Hello {user}! What can I do for you?")
 
-@app.route('/webhook', methods=['POST'])
-def webhook():
-    if request.headers.get('content-type') == 'application/json':
-        json_string = request.get_data().decode('utf-8')
-        update = telebot.types.Update.de_json(json_string)
-        config.bot.process_new_updates([update])
-        return '', 200
-    return 'Invalid content type', 403
+async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Muestra el mensaje de bienvenida y ayuda."""
+    user = update.effective_user.first_name
+    help_text = (
+        f"👋 Hello {user}!\n\n"
+        "🤖 **Available Commands:**\n\n"
+        "✨ /ask `[text]` - Ask the AI (or reply to a message)\n"
+        "🧹 /clear - Reset conversation history\n"
+        "🎬 /dl `[url]` - Download video (Insta/TikTok/FB)\n"
+        "🇪🇸 /es_en - Translate to English\n"
+        "🇬🇧 /en_es - Translate to Spanish\n"
+        "🎤 **Voice Note** - I will transcribe and answer via audio\n\n"
+        "ℹ️ *In groups, remember to mention me:* `/ask@MyBot ...`"
+    )
+    await update.message.reply_text(help_text, parse_mode="Markdown")
 
-# ========== Application Entry Point ==========
-if __name__ == '__main__':
-    # Setup logging first
-    config.setup_logging()
 
-    logger = logging.getLogger(__name__)
-    # Then setup bot handlers
-    setup_bot_handlers()
+# --- 2. Helper Function to Register Everything (AVOIDS DUPLICATION) ---
+def register_handlers(application: Application):
+    """
+    Registers all commands for both Webhook and Polling modes.
+    Follows DRY principle.
+    """
+    # 1. General Commands
+    # filters=TARGETED_OR_PRIVATE performs the magic of filtering group spam
+    application.add_handler(CommandHandler("start", start_command, filters=TARGETED_OR_PRIVATE))
+    application.add_handler(CommandHandler("help", help_command, filters=TARGETED_OR_PRIVATE))
     
-    if os.environ.get('HOSTING') == "production":
-        from waitress import serve
-        logger.info(f"Starting in production mode, setting webhook to {config.WEBHOOK_URL}")
-        config.bot.remove_webhook()
-        config.bot.set_webhook(url=config.WEBHOOK_URL + '/webhook')
-        serve(app, host='0.0.0.0', port=8080)
+    # 2. AI
+    application.add_handler(CommandHandler("ask", ai.ask_command, filters=TARGETED_OR_PRIVATE))
+    application.add_handler(CommandHandler("clear", ai.clear_command, filters=TARGETED_OR_PRIVATE))
+    
+    # 3. Video
+    application.add_handler(CommandHandler("dl", video.dl_command, filters=TARGETED_OR_PRIVATE))
+    
+    # 4. Translation
+    application.add_handler(CommandHandler(["es_en", "en_es"], translate.translate_command, filters=TARGETED_OR_PRIVATE))
+    
+    # 5. Audio (Voice Notes) - This is not a text command, but a message type
+    application.add_handler(MessageHandler(filters.VOICE & filters.ChatType.PRIVATE, audio.handle_voice))
+
+    # 6. Private Text for AI (This stays the same, already restricted to PRIVATE)
+    application.add_handler(MessageHandler(
+        filters.ChatType.PRIVATE & filters.TEXT & ~filters.COMMAND, 
+        ai.handle_private_text
+    ))
+
+# --- 3. Lifespan Logic (for FastAPI) ---
+ptb_application: Application = None
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    global ptb_application
+    
+    # --- STARTUP ---
+    logger.info("🚀 Starting Bot Application (Webhook Mode)...")
+    ptb_application = ApplicationBuilder().token(config.BOT_TOKEN).build()
+    
+    # Use the helper function
+    register_handlers(ptb_application)
+    
+    await ptb_application.initialize()
+    await ptb_application.start()
+    
+    if config.HOSTING == "production":
+        webhook_url = f"{config.WEBHOOK_URL}/webhook"
+        logger.info(f"Configuring Webhook at: {webhook_url}")
+        await ptb_application.bot.set_webhook(url=webhook_url)
     else:
-        logger.info("Starting in development mode with polling...")
-        config.bot.delete_webhook()
-        config.bot.infinity_polling()
+        # In development with FastAPI + Ngrok, for example
+        await ptb_application.bot.delete_webhook()
+
+    yield # FastAPI runs here
+    
+    # --- SHUTDOWN ---
+    logger.info("🛑 Stopping Bot...")
+    if ptb_application:
+        await ptb_application.stop()
+        await ptb_application.shutdown()
+
+# --- 4. Initialize FastAPI ---
+app = FastAPI(lifespan=lifespan)
+
+@app.get("/")
+async def health_check():
+    return {"status": "ok", "bot": "active"}
+
+@app.post("/webhook")
+async def telegram_webhook(request: Request):
+    data = await request.json()
+    update = Update.de_json(data, ptb_application.bot)
+    await ptb_application.process_update(update)
+    return Response(status_code=200)
+
+# --- 5. Entry Point for Polling (Classic Local Development) ---
+def run_polling():
+    """
+    Runs WITHOUT FastAPI, directly with the Telegram library.
+    Ideal for local testing without configuring ngrok or ports.
+    """
+    logger.info("Polling Mode: Starting...")
+    
+    # Create a LOCAL instance, do not use the global ptb_application
+    app_bot = ApplicationBuilder().token(config.BOT_TOKEN).build()
+    
+    # Use the SAME registration function
+    register_handlers(app_bot)
+
+    logger.info("🤖 Bot listening... (Ctrl+C to stop)")
+    app_bot.run_polling()
+
+if __name__ == "__main__":
+    # Decision Logic: Production or Local Development?
+    if config.HOSTING == "development" and not config.WEBHOOK_URL:
+        # If in dev and no webhook configured, use direct Polling
+        run_polling()
+    else:
+        # If production, start the web server
+        uvicorn.run("src.telegram_bot.main:app", host="0.0.0.0", port=config.PORT, reload=True)

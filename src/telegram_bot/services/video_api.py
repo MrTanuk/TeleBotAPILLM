@@ -7,107 +7,108 @@ import shutil
 from yt_dlp import YoutubeDL, DownloadError
 from .. import config
 
-_cookie_cache = {"data": None, "timestamp": 0}
 logger = logging.getLogger(__name__)
 
+# Simple in-memory cache to avoid hammering Supabase
+_cookie_cache = {"data": None, "timestamp": 0}
+
 def get_cookies_from_supabase():
-    """Fetches cookie data from the Supabase database."""
+    """
+    Fetches cookies from Supabase with a 1-hour cache.
+    """
+    global _cookie_cache
+    
+    # If cache is fresh (< 1 hour), use it
     if _cookie_cache["data"] and (time.time() - _cookie_cache["timestamp"] < 3600):
-        logger.info("Cookies loaded successfully from cache.")
         return _cookie_cache["data"]
 
     if not config.supabase:
-        logger.warning("Supabase is not configured. Cannot fetch cookies.", exc_info=True)
+        logger.warning("Supabase is not configured. Cookies unavailable.")
         return None
+
     try:
         response = config.supabase.table("cookies").select("cookies_data").eq("name_media", "Youtube/Instagram").single().execute()
+        # Note: supabase-py v2 returns an object with .data
         if response.data and "cookies_data" in response.data:
-            logger.info("Cookies loaded successfully from Supabase.")
             cookie_data = response.data["cookies_data"]
-            
             _cookie_cache["data"] = cookie_data
             _cookie_cache["timestamp"] = time.time()
-            
+            logger.info("Cookies updated from Supabase.")
             return cookie_data
-        logger.warning("No cookies found for 'Youtube/Instagram' in Supabase.", exc_info=True)
+            
+        logger.warning("No cookies found in Supabase.")
         return None
     except Exception as e:
-        logger.error("Error fetching cookies from Supabase: %s", e, exc_info=True)
+        logger.error("Error fetching cookies: %s", e)
         return None
 
-
 def download_video(url):
-    """Downloads a video from a given URL, but does NOT clean up the temporary file."""
-    url_pattern = re.compile(
-        r'^(https?://)?(?:www\.)?'
-        r'(?:'
-        r'(?:youtube\.com/(?:watch\?v=|shorts/)|youtu\.be/)[\w\-]+|'
-        r'facebook\.com|fb\.watch|instagram\.com|instagr\.am|tiktok\.com|vm\.tiktok\.com|vt\.tiktok\.com'
-        r')', re.IGNORECASE
-    )
-    if not url_pattern.match(url):
-        raise ValueError("❌ Invalid URL. Supported sites: YouTube, Facebook, Instagram, TikTok.")
+    """
+    Downloads the video from the provided URL.
+    
+    WARNING: This function is BLOCKING (Sync). It must be executed in a separate thread.
+    """
+    # Basic URL validation
+    if not re.search(r'(youtube|youtu\.be|facebook|instagram|tiktok)', url, re.IGNORECASE):
+        raise ValueError("❌ Unsupported or invalid URL.")
 
     temp_dir = tempfile.mkdtemp()
     
-    is_youtube = "youtube.com" in url.lower() or "youtu.be" in url.lower()
-    is_instagram = "instagram.com" in url.lower() or "instagr.am" in url.lower()
-    if is_youtube:
-        format_spec = 'bestvideo[ext=mp4][vcodec^=avc1][height<=480]+bestaudio/best'
-    elif is_instagram:
-        format_spec = 'best[ext=mp4]/bestvideo+bestaudio'
-    elif "tiktok.com" in url.lower() or "vm.tiktok.com" in url.lower():
-        format_spec = 'bestvideo[ext=mp4][vcodec^=avc1][height<=720]+bestaudio/best'
-    else:  
-        format_spec = '(bestvideo[vcodec^=avc1][height<=720]+bestaudio)/best'
-    MAX_SIZE_MB = 49.5
-    MAX_SIZE_BYTES = MAX_SIZE_MB * 1_000_000
+    # Intelligent format configuration
+    is_youtube = "youtube" in url.lower() or "youtu.be" in url.lower()
     
+    # Prioritize MP4 and mobile-compatible codecs (avc1/h264)
+    if is_youtube:
+        format_spec = 'bestvideo[ext=mp4][vcodec^=avc1][height<=720]+bestaudio[ext=m4a]/best[ext=mp4]/best'
+    else:
+        format_spec = 'best[ext=mp4]/bestvideo+bestaudio/best'
+
+    ydl_opts = {
+        'outtmpl': f'{temp_dir}/%(id)s.%(ext)s',
+        'format': format_spec,
+        'quiet': True,
+        'no_warnings': True,
+        'noplaylist': True,
+        'max_filesize': 50 * 1024 * 1024, # 50MB (Telegram Bot API limit without local server)
+        'merge_output_format': 'mp4',
+    }
+
+    # Cookie Management
     cookie_file_path = None
     try:
-        ydl_opts = {
-            'outtmpl': f'{temp_dir}/%(id)s.%(ext)s',
-            'format': format_spec,
-            'quiet': True,
-            'no_warnings': True,
-            'cookiefile': None,
-            'noplaylist': True,
-            'max_filesize': MAX_SIZE_BYTES,
-            'merge_output_format': 'mp4',
-            'socket_timeout': 30,
-        }
-    
-        if is_youtube or is_instagram:
+        if is_youtube or "instagram" in url.lower():
             cookie_data = get_cookies_from_supabase()
             if cookie_data:
-                with tempfile.NamedTemporaryFile(mode='w', delete=False, dir=temp_dir, suffix='.txt', encoding='utf-8') as tmp_cookie_file:
-                    tmp_cookie_file.write(cookie_data)
-                    cookie_file_path = tmp_cookie_file.name
+                # Create temporary cookie file
+                with tempfile.NamedTemporaryFile(mode='w', delete=False, dir=temp_dir, suffix='.txt', encoding='utf-8') as tmp:
+                    tmp.write(cookie_data)
+                    cookie_file_path = tmp.name
                 ydl_opts['cookiefile'] = cookie_file_path
 
+        # --- THE DOWNLOAD ---
         with YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(url, download=True)
             filename = ydl.prepare_filename(info)
 
             if not filename or not os.path.exists(filename):
-                raise RuntimeError("Download process completed, but the final video file is missing.")
+                # Sometimes prepare_filename fails if formats are merged, look for mp4
+                files = [f for f in os.listdir(temp_dir) if f.endswith('.mp4')]
+                if files:
+                    filename = os.path.join(temp_dir, files[0])
+                else:
+                    raise RuntimeError("Could not find the downloaded file.")
             
-            file_size = os.path.getsize(filename)
-            if file_size > MAX_SIZE_BYTES:
-                raise ValueError(f"❌ Video too large ({file_size/1_000_000:.1f}MB > {MAX_SIZE_MB}MB limit)")
-
             return filename
 
     except Exception as e:
+        # Cleanup on error
         shutil.rmtree(temp_dir, ignore_errors=True)
-        
         error_msg = str(e).lower()
-        if "login" in error_msg or "age-restricted" in error_msg or "private" in error_msg:
-             raise ValueError("🔒 This video is private or age-restricted. Updated cookies may be required.")
-        if isinstance(e, DownloadError):
-            raise ValueError(f"❌ Download failed: {str(e).split(':')[-1].strip()}")
-        logger.error("Unexpected error in video API: %s", str(e), exc_info=True)
+        if "login" in error_msg or "sign in" in error_msg:
+             raise ValueError("🔒 Private content or login required (Cookies might be expired).")
         raise e
+        
     finally:
+        # Remove cookie file if it was created
         if cookie_file_path and os.path.exists(cookie_file_path):
             os.remove(cookie_file_path)
