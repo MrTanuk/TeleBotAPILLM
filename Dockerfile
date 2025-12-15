@@ -48,4 +48,4 @@ ENV PATH="/app/.venv/bin:$PATH"
 ENV PYTHONPATH="/app/src"
 
 # 5. Execute
-CMD ["python", "-m", "telegram_bot.main"]
+CMD ["uvicorn", "telegram_bot.main:app", "--host", "0.0.0.0", "--port", "8080"]

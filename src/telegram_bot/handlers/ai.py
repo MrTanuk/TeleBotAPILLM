@@ -113,8 +113,13 @@ async def process_ai_interaction(update: Update, context: ContextTypes.DEFAULT_T
 
     except Exception as e:
         logger.error("Error in AI handler: %s", e, exc_info=True)
-        # If markdown fails, try plain text
+
+        error_msg = "🚨 Sorry, technical problem"
+
+        # Error Cuote
+        if "429" in str(e) or "Resource has been exhausted" in str(e):
+            error_msg = "⏳ I have exceeded my AI quota for today. Please try again tomorrow."
         try:
-            await update.message.reply_text(str(e)) # Send error or plain response
+            await update.message.reply_text(error_msg)
         except:
-            await update.message.reply_text("🚨 An error occurred processing your request.")
+            pass

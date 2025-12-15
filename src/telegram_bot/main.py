@@ -1,7 +1,7 @@
 import logging
 import warnings
-import uvicorn
 from contextlib import asynccontextmanager
+from cachetools import TTLCache
 from fastapi import FastAPI, Request, Response
 from telegram import Update
 from telegram.ext import ApplicationBuilder, Application, CommandHandler, MessageHandler, filters, ContextTypes
@@ -14,6 +14,8 @@ from .custom_filters import TARGETED_OR_PRIVATE
 # Logger setup
 config.setup_logging()
 logger = logging.getLogger(__name__)
+
+processed_updates = TTLCache(maxsize=1000, ttl=300)
 
 # Filter syntax warnings from pydub due to Python version strictness
 warnings.filterwarnings("ignore", category=SyntaxWarning, module="pydub")
@@ -115,6 +117,12 @@ async def health_check():
 async def telegram_webhook(request: Request):
     data = await request.json()
     update = Update.de_json(data, ptb_application.bot)
+
+    if update.update_id in processed_updates:
+        logger.warning(f"⚠️ Update {update.update_id} duplicated (Telegram retry).")
+        return Response(status_code=200)
+    
+    processed_updates[update.update_id] = True
     await ptb_application.process_update(update)
     return Response(status_code=200)
 
@@ -136,10 +144,13 @@ def run_polling():
     app_bot.run_polling()
 
 if __name__ == "__main__":
-    # Decision Logic: Production or Local Development?
-    if config.HOSTING == "development" and not config.WEBHOOK_URL:
-        # If in dev and no webhook configured, use direct Polling
-        run_polling()
-    else:
+
+    if config.HOSTING == "production":
         # If production, start the web server
+        import uvicorn
+        logger.info("⚠️ Running production mode locally via Python script...")
         uvicorn.run("src.telegram_bot.main:app", host="0.0.0.0", port=config.PORT, reload=True)
+    else:
+        # If in dev and no webhook configured, use direct Polling
+        logger.info("🧑‍💻 Running development mode...")
+        run_polling()
