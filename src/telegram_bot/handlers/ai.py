@@ -2,6 +2,7 @@ import logging
 from datetime import datetime, timezone
 from telegram import Update, constants
 from telegram.ext import ContextTypes
+from telegram.error import BadRequest
 
 from .. import config
 from ..services import llm_api
@@ -109,16 +110,21 @@ async def process_ai_interaction(update: Update, context: ContextTypes.DEFAULT_T
         # 5. Save response and send
         conversation.append({"role": "assistant", "content": ai_response})
         
-        await update.message.reply_text(ai_response, parse_mode="HTML")
+        await update.message.reply_text(ai_response, parse_mode="Markdown")
+
+    except BadRequest as e:
+        logger.warning(f"Markdown failed, Sending text plain. Error: {e}")
+        try:
+            await update.message.reply_text(ai_response)
+        except Exception as e2:
+            logger.error(f"Error sending the answer: {e2}")
+            await update.message.reply_text("🚨 Error sending the answer")
 
     except Exception as e:
         logger.error("Error in AI handler: %s", e, exc_info=True)
 
         error_msg = "🚨 Sorry, technical problem"
 
-        # Error Cuote
-        if "429" in str(e) or "Resource has been exhausted" in str(e):
-            error_msg = "⏳ I have exceeded my AI quota for today. Please try again tomorrow."
         try:
             await update.message.reply_text(error_msg)
         except:
