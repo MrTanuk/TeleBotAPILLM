@@ -40,7 +40,7 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "🎤 **Voice Note** - I will transcribe and answer via audio\n\n"
         "ℹ️ *In groups, remember to mention me:* `/ask@MyBot ...`"
     )
-    await update.message.reply_text(help_text, parse_mode="HTML")
+    await update.message.reply_text(help_text, parse_mode="Markdown")
 
 
 # --- 2. Helper Function to Register Everything (AVOIDS DUPLICATION) ---
