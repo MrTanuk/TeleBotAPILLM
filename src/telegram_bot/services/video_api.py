@@ -9,38 +9,6 @@ from .. import config
 
 logger = logging.getLogger(__name__)
 
-# Simple in-memory cache to avoid hammering Supabase
-_cookie_cache = {"data": None, "timestamp": 0}
-
-def get_cookies_from_supabase():
-    """
-    Fetches cookies from Supabase with a 1-hour cache.
-    """
-    global _cookie_cache
-    
-    # If cache is fresh (< 1 hour), use it
-    if _cookie_cache["data"] and (time.time() - _cookie_cache["timestamp"] < 3600):
-        return _cookie_cache["data"]
-
-    if not config.supabase:
-        logger.warning("Supabase is not configured. Cookies unavailable.")
-        return None
-
-    try:
-        response = config.supabase.table("cookies").select("cookies_data").eq("name_media", "Youtube/Instagram").single().execute()
-        # Note: supabase-py v2 returns an object with .data
-        if response.data and "cookies_data" in response.data:
-            cookie_data = response.data["cookies_data"]
-            _cookie_cache["data"] = cookie_data
-            _cookie_cache["timestamp"] = time.time()
-            logger.info("Cookies updated from Supabase.")
-            return cookie_data
-            
-        logger.warning("No cookies found in Supabase.")
-        return None
-    except Exception as e:
-        logger.error("Error fetching cookies: %s", e)
-        return None
 
 def download_video(url):
     """
