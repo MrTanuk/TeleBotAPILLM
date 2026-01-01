@@ -67,23 +67,12 @@ def download_video(url):
         'outtmpl': f'{temp_dir}/%(id)s.%(ext)s',
         'format': format_spec,
         'quiet': True,
+        'cookiefile': COOKIES,
         'no_warnings': True,
         'noplaylist': True,
         'max_filesize': 50 * 1024 * 1024, # 50MB (Telegram Bot API limit without local server)
         'merge_output_format': 'mp4',
-    }
-
-    # Cookie Management
-    cookie_file_path = None
-    try:
-        if is_youtube or "instagram" in url.lower():
-            cookie_data = get_cookies_from_supabase()
-            if cookie_data:
-                # Create temporary cookie file
-                with tempfile.NamedTemporaryFile(mode='w', delete=False, dir=temp_dir, suffix='.txt', encoding='utf-8') as tmp:
-                    tmp.write(cookie_data)
-                    cookie_file_path = tmp.name
-                ydl_opts['cookiefile'] = cookie_file_path
+    } 
 
         # --- THE DOWNLOAD ---
         with YoutubeDL(ydl_opts) as ydl:
