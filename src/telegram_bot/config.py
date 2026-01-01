@@ -1,7 +1,6 @@
 import os
 import logging
 from dotenv import load_dotenv
-from supabase import Client
 
 # Load environment variables
 load_dotenv()
