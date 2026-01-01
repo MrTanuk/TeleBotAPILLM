@@ -38,16 +38,9 @@ else:
     # For OpenAI/DeepSeek the URL in .env is already correct
     API_URL = _BASE_API_URL
 
+# --- Cookies to download safety videos
 COOKIES = os.getenv("COOKIES")
 
-# --- Supabase Configuration ---
-SUPABASE_URL = os.getenv("SUPABASE_URL")
-SUPABASE_KEY = os.getenv("SUPABASE_KEY")
-supabase: Client = None
-
-if SUPABASE_URL and SUPABASE_KEY:
-    supabase = Client(SUPABASE_URL, SUPABASE_KEY)
-    
 # --- Webhook & Hosting Configuration ---
 WEBHOOK_URL = os.getenv("WEBHOOK_URL")
 PORT = int(os.environ.get("PORT", 8080))
