@@ -40,7 +40,8 @@ def download_video(url):
         'noplaylist': True,
         'max_filesize': 50 * 1024 * 1024, # 50MB (Telegram Bot API limit without local server)
         'merge_output_format': 'mp4',
-    } 
+    }
+    try:
 
         # --- THE DOWNLOAD ---
         with YoutubeDL(ydl_opts) as ydl:
