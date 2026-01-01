@@ -38,6 +38,8 @@ else:
     # For OpenAI/DeepSeek the URL in .env is already correct
     API_URL = _BASE_API_URL
 
+COOKIES = os.getenv("COOKIES")
+
 # --- Supabase Configuration ---
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
