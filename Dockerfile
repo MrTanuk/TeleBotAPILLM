@@ -41,7 +41,6 @@ COPY --from=builder /app/.venv /app/.venv
 
 # 3. Copy source code
 COPY src/ ./src/
-COPY scripts/ ./scripts/
 
 # 4. Configure the PATH to use the virtual environment automatically
 ENV PATH="/app/.venv/bin:$PATH"

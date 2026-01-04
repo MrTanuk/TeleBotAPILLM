@@ -5,16 +5,17 @@ from dotenv import load_dotenv
 # Load environment variables
 load_dotenv()
 
+
 def setup_logging():
     """
     Configures the global logging settings.
     """
     logging.basicConfig(
-        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-        level=logging.INFO
+        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
     )
     # Silence httpx info logs to reduce noise
     logging.getLogger("httpx").setLevel(logging.WARNING)
+
 
 # --- Credentials ---
 BOT_TOKEN = os.getenv("BOT_TOKEN")
@@ -27,7 +28,7 @@ API_TOKEN = os.getenv("API_TOKEN")
 LLM_MODEL = os.getenv("LLM_MODEL")
 SYSTEM_MESSAGE = os.getenv("SYSTEM_MESSAGE")
 MAX_OUTPUT_TOKENS = int(os.getenv("MAX_OUTPUT_TOKENS", 700))
-_BASE_API_URL = os.getenv("API_URL") # Read base URL from .env
+_BASE_API_URL = os.getenv("API_URL")  # Read base URL from .env
 
 if PROVIDER and PROVIDER.lower() == "google":
     # Google Gemini requires a specifically constructed URL:
