@@ -35,8 +35,8 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "✨ /ask `[text]` - Ask the AI (or reply to a message)\n"
         "🧹 /clear - Reset conversation history\n"
         "🎬 /dl `[url]` - Download video (Insta/TikTok/FB)\n"
-        "🇪🇸 /es_en - Translate to English\n"
-        "🇬🇧 /en_es - Translate to Spanish\n"
+        "🇪🇸 /es\_en - Translate to English\n"
+        "🇬🇧 /en\_es - Translate to Spanish\n"
         "🎤 **Voice Note** - I will transcribe and answer via audio\n\n"
         "ℹ️ *In groups, remember to mention me:* `/ask@MyBot ...`"
     )
