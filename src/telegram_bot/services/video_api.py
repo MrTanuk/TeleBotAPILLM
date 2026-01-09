@@ -48,7 +48,13 @@ def download_video(url):
             "noplaylist": True,
             "max_filesize": 50 * 1024 * 1024,
             "merge_output_format": "mp4",
+            "verbose": True,
             "nocheckcertificate": True,
+            "http_headers": {
+                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                    "Accept-Language": "en-US,en;q=0.9",
+                },
+                "geo_bypass": True,
         }
 
         if cookie_file_path:
