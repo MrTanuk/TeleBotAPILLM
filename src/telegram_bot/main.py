@@ -109,7 +109,7 @@ async def lifespan(app: FastAPI):
 # --- 4. Initialize FastAPI ---
 app = FastAPI(lifespan=lifespan)
 
-@app.get("/")
+@app.api_route("/",methods=["GET", "HEAD"])
 async def health_check():
     return {"status": "ok", "bot": "active"}
 

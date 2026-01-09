@@ -17,9 +17,8 @@ def parse_response(response: dict, provider: str) -> str:
             if "choices" in response:
                 message = response["choices"][0]["message"]
                 content = message.get("content")
-                if content:
+                if content and content.strip():
                     return content
-                return message.get("reasoning_content", "Model is thinking...")
         
         elif provider == "google":
             return response["candidates"][0]["content"]["parts"][0]["text"]
@@ -33,11 +32,10 @@ def parse_response(response: dict, provider: str) -> str:
             error_msg = error_data.get("message", "Error desconocido")
         else:
             error_msg = str(error_data) if error_data else "Estructura de JSON inválida"
-            
         raise RuntimeError(f"API Error: {error_msg}")
 
 
-async def get_api_llm(messages, API_TOKEN, API_URL, LLM_MODEL, PROVIDER, MAX_OUTPUT_TOKENS=800):
+async def get_api_llm(messages, API_TOKEN, API_URL, LLM_MODEL, PROVIDER, MAX_OUTPUT_TOKENS=1024):
     """
     Sends an asynchronous request to the LLM API provider and retrieves the response.
 
@@ -104,7 +102,7 @@ async def get_api_llm(messages, API_TOKEN, API_URL, LLM_MODEL, PROVIDER, MAX_OUT
             "data": {
                 "model": LLM_MODEL,
                 "messages": messages,
-                "temperature": 1,
+                "temperature": 0.5,
                 "stream": False,
                 "max_completion_tokens": int(MAX_OUTPUT_TOKENS),
                 "reasoning_effort": "medium"
