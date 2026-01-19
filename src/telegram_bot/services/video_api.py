@@ -3,28 +3,74 @@ import re
 import logging
 import tempfile
 import shutil
+import requests
 from yt_dlp import YoutubeDL
 
 logger = logging.getLogger(__name__)
 
+COBALT_API_URL = "https://api.cobalt.tools"
+
 
 def download_video(url):
     """
-    Downloads the video from the provided URL.
-    WARNING: This function is BLOCKING. Executed in a separate thread.
+    Try to download via Cobalt (External API). If it fails, use local yt-dlp with mobile camouflage.
     """
     if not re.search(
-        r"(youtube|youtu\.be|facebook|instagram|tiktok)", url, re.IGNORECASE
+        r"(youtube|youtu\.be|facebook|instagram|tiktok|twitter|x\.com)",
+        url,
+        re.IGNORECASE,
     ):
-        raise ValueError("❌ Unsupported or invalid URL.")
+        raise ValueError("❌ Link not supported.")
 
     temp_dir = tempfile.mkdtemp()
+    filename = os.path.join(temp_dir, "video.mp4")
+
+    try:
+        logger.info(f"🔄 Attempting download via Cobalt...")
+
+        headers = {
+            "Accept": "application/json",
+            "Content-Type": "application/json",
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+        }
+
+        payload = {
+            "url": url,
+            "vQuality": "720",
+            "filenamePattern": "basic",
+            "isAudioOnly": False,
+        }
+
+        response = requests.post(
+            f"{COBALT_API_URL}/api/json", json=payload, headers=headers, timeout=15
+        )
+
+        if response.status_code != 200:
+            logger.warning(f"⚠️ Cobalt error {response.status_code}: {response.text}")
+            raise ConnectionError("Cobalt API Error")
+
+        data = response.json()
+
+        if "url" in data:
+            video_url = data["url"]
+            with requests.get(video_url, stream=True) as r:
+                r.raise_for_status()
+                with open(filename, "wb") as f:
+                    for chunk in r.iter_content(chunk_size=8192):
+                        f.write(chunk)
+
+            logger.info("✅ Successful download via Cobalt")
+            return filename
+        else:
+            logger.warning(f"⚠️ Unexpected Cobalt response: {data}")
+
+    except Exception as e:
+        logger.warning(f"⚠️ Cobalt failed ({str(e)}), switching to local yt-dlp...")
 
     try:
         is_youtube = "youtube" in url.lower() or "youtu.be" in url.lower()
 
         if is_youtube:
-            # Formato optimizado para evitar archivos muy pesados
             format_spec = (
                 "bestvideo[ext=mp4][height<=720]+bestaudio[ext=m4a]/best[ext=mp4]/best"
             )
@@ -39,8 +85,6 @@ def download_video(url):
             "noplaylist": True,
             "max_filesize": 50 * 1024 * 1024,
             "merge_output_format": "mp4",
-            "verbose": True,
-            "nocheckcertificate": True,
             "extractor_args": {
                 "youtube": {
                     "player_client": ["android", "ios"],
@@ -53,30 +97,25 @@ def download_video(url):
             },
             "http_headers": {
                 "User-Agent": "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36",
-                "Accept-Language": "en-US,en;q=0.9",
             },
             "geo_bypass": True,
         }
 
         with YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(url, download=True)
-            filename = ydl.prepare_filename(info)
+            video_title = info.get("title", "Unknown Video")
+            logger.info(f"📥 Downloaded via yt-dlp: {video_title}")
 
-            if not filename or not os.path.exists(filename):
-                files = [f for f in os.listdir(temp_dir) if f.endswith(".mp4")]
-                if files:
-                    filename = os.path.join(temp_dir, files[0])
-                else:
-                    raise RuntimeError("Could not find the downloaded file.")
+            downloaded_files = [f for f in os.listdir(temp_dir) if f != "video.mp4"]
 
-            return filename
+            if downloaded_files:
+                return os.path.join(temp_dir, downloaded_files[0])
+            else:
+                raise RuntimeError("Downloaded file not found on disk.")
 
     except Exception as e:
         shutil.rmtree(temp_dir, ignore_errors=True)
-
         error_msg = str(e).lower()
-        if "sign in" in error_msg or "confirm you’re not a bot" in error_msg:
-            raise ValueError(
-                "🔒 YouTube requiere verificación. Intenta con otro video."
-            )
+        if "sign in" in error_msg:
+            raise ValueError("🔒 It couldn't download video")
         raise e
