@@ -1,9 +1,30 @@
 services:
+  warp:
+    image: caomingjun/warp
+    container_name: warp_container
+    restart: always
+
+    ports:
+      - "8080:8080"
+
+    environment:
+      - WARP_LICENSE_KEY=
+      - WARP_SLEEP=2
+
+    cap_add:
+      - NET_ADMIN
+
+    sysctls:
+      - net.ipv6.conf.all.disable_ipv6=0
+
   telegram-bot:
     build: .
     container_name: telebot_container
     restart: always
-    ports:
-      - "8080:8080"
+    network_mode: service:warp
+
     env_file:
       - .env
+
+    depends_on:
+      - warp

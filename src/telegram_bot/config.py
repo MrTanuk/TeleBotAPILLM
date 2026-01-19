@@ -11,7 +11,8 @@ def setup_logging():
     Configures the global logging settings.
     """
     logging.basicConfig(
-        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
+        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+        level=logging.INFO,
     )
     # Silence httpx info logs to reduce noise
     logging.getLogger("httpx").setLevel(logging.WARNING)
@@ -37,9 +38,6 @@ if PROVIDER and PROVIDER.lower() == "google":
 else:
     # For OpenAI/DeepSeek the URL in .env is already correct
     API_URL = _BASE_API_URL
-
-# --- Cookies to download safety videos
-COOKIES = os.getenv("COOKIES")
 
 # --- Webhook & Hosting Configuration ---
 WEBHOOK_URL = os.getenv("WEBHOOK_URL")
