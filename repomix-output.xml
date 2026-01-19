@@ -1,0 +1,1368 @@
+This file is a merged representation of the entire codebase, combined into a single document by Repomix.
+
+<file_summary>
+This section contains a summary of this file.
+
+<purpose>
+This file contains a packed representation of the entire repository's contents.
+It is designed to be easily consumable by AI systems for analysis, code review,
+or other automated processes.
+</purpose>
+
+<file_format>
+The content is organized as follows:
+1. This summary section
+2. Repository information
+3. Directory structure
+4. Repository files (if enabled)
+5. Multiple file entries, each consisting of:
+  - File path as an attribute
+  - Full contents of the file
+</file_format>
+
+<usage_guidelines>
+- This file should be treated as read-only. Any changes should be made to the
+  original repository files, not this packed version.
+- When processing this file, use the file path to distinguish
+  between different files in the repository.
+- Be aware that this file may contain sensitive information. Handle it with
+  the same level of security as you would the original repository.
+</usage_guidelines>
+
+<notes>
+- Some files may have been excluded based on .gitignore rules and Repomix's configuration
+- Binary files are not included in this packed representation. Please refer to the Repository Structure section for a complete list of file paths, including binary files
+- Files matching patterns in .gitignore are excluded
+- Files matching default ignore patterns are excluded
+- Files are sorted by Git change count (files with more changes are at the bottom)
+</notes>
+
+</file_summary>
+
+<directory_structure>
+src/
+  telegram_bot/
+    handlers/
+      __init__.py
+      ai.py
+      audio.py
+      translate.py
+      video.py
+    services/
+      __init__.py
+      llm_api.py
+      speech_to_text.py
+      video_api.py
+    __init__,py
+    config.py
+    custom_filters.py
+    main.py
+.env.example
+.gitignore
+compose.yaml
+Dockerfile
+pyproject.toml
+README.md
+</directory_structure>
+
+<files>
+This section contains the contents of the repository's files.
+
+<file path="src/telegram_bot/handlers/__init__.py">
+
+</file>
+
+<file path="src/telegram_bot/services/__init__.py">
+
+</file>
+
+<file path="src/telegram_bot/__init__,py">
+
+</file>
+
+<file path="src/telegram_bot/custom_filters.py">
+from telegram.ext import filters
+
+class _TargetedOrPrivateFilter(filters.MessageFilter):
+    """
+    Custom filter for PTB v20+.
+    
+    Allows the command execution if:
+    1. It is a private chat.
+    2. It is a group AND the command explicitly mentions the bot (e.g., /start@botname).
+    """
+    def filter(self, message):
+        """
+        Determines if the message should be processed based on chat type and command format.
+        """
+        # Safety check if message has no text
+        if not message or not message.text:
+            return False
+
+        # 1. In Private chats, always allow commands
+        if message.chat.type == 'private':
+            return True
+            
+        # 2. In Groups, verify if there is an explicit mention
+        # Get the first word (the command itself)
+        command_part = message.text.split()[0]
+        
+        # If it contains '@', return True.
+        return '@' in command_part
+
+# Instantiate the class to export it as a ready-to-use filter object
+TARGETED_OR_PRIVATE = _TargetedOrPrivateFilter()
+</file>
+
+<file path="src/telegram_bot/services/speech_to_text.py">
+import logging
+import io
+import speech_recognition as sr
+from pydub import AudioSegment
+
+logger = logging.getLogger(__name__)
+
+def speech(ogg_bytes):
+    """
+    Converts OGG bytes (from Telegram) to text.
+    
+    Note: This is a BLOCKING function (CPU bound + Synchronous Network request).
+    It must be run in a separate thread.
+    """
+    try:
+        # 1. Convert OGG (Telegram) to WAV (Compatible with SpeechRecognition)
+        # Pydub handles bytes in memory
+        audio = AudioSegment.from_ogg(io.BytesIO(ogg_bytes))
+        
+        # Adjust for better recognition (16kHz mono is standard for voice)
+        audio = audio.set_frame_rate(16000).set_channels(1)
+
+        wav_bytes = io.BytesIO()
+        audio.export(wav_bytes, format="wav")
+        wav_bytes.seek(0)
+
+        # 2. Recognition process
+        r = sr.Recognizer()
+        with sr.AudioFile(wav_bytes) as source:
+            # Optional: Calibrate ambient noise briefly
+            # r.adjust_for_ambient_noise(source, duration=0.5) 
+            audio_data = r.record(source)
+
+        # Call to Google API (Free/Limited)
+        # Using "es-ES" as default, you might want to change this to "en-US" or make it dynamic
+        text = r.recognize_google(audio_data, language="en-US") 
+        return text
+
+    except sr.UnknownValueError:
+        return None # Audio could not be understood
+    except sr.RequestError as e:
+        logger.error(f"SpeechRecognition service error: {e}")
+        raise RuntimeError("Error connecting to speech service.")
+    except Exception as e:
+        logger.error(f"Error processing audio: {e}", exc_info=True)
+        raise e
+    finally:
+        # Explicitly close the byte buffer (good practice)
+        if 'wav_bytes' in locals():
+            wav_bytes.close()
+</file>
+
+<file path=".env.example">
+# Telegram Credentials
+BOT_TOKEN=
+
+# AI Provider (google / openai / deepseek)
+PROVIDER=google
+API_TOKEN=
+LLM_MODEL=gemini-1.5-flash
+# Base URL for Google: https://generativelanguage.googleapis.com/v1beta/models
+# Base URL for OpenAI: https://api.openai.com/v1/chat/completions
+API_URL=https://generativelanguage.googleapis.com/v1beta/models
+SYSTEM_MESSAGE="You are a helpful assistant."
+MAX_OUTPUT_TOKENS=800
+
+# Hosting (development / production)
+HOSTING=development
+WEBHOOK_URL=
+PORT=8080
+</file>
+
+<file path=".gitignore">
+bot_telegram/
+venv/
+.env/
+env/
+bin/
+include/
+lib/
+lib64/
+pyvenv.cfg
+*.env              
+.env.local         
+
+
+__pycache__/
+*.py[cod]
+*.pyc
+*.pyd
+*.pyo
+
+
+.vscode/
+.idea/
+*.swp
+*.swo
+
+
+*.log
+*.cache
+
+
+cookies.txt
+</file>
+
+<file path="compose.yaml">
+services:
+  warp:
+    image: caomingjun/warp
+    container_name: warp_container
+    restart: always
+
+    ports:
+      - "8080:8080"
+
+    environment:
+      - WARP_LICENSE_KEY=
+      - WARP_SLEEP=2
+
+    cap_add:
+      - NET_ADMIN
+
+    sysctls:
+      - net.ipv6.conf.all.disable_ipv6=0
+
+  telegram-bot:
+    build: .
+    container_name: telebot_container
+    restart: always
+    network_mode: service:warp
+
+    env_file:
+      - .env
+
+    depends_on:
+      - warp
+</file>
+
+<file path="src/telegram_bot/handlers/translate.py">
+import logging
+from telegram import Update, constants
+from telegram.ext import ContextTypes
+from ..services import llm_api
+from .. import config
+
+logger = logging.getLogger(__name__)
+
+async def translate_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    Handles translation commands: /es_en (Spanish->English) and /en_es (English->Spanish).
+    Supports direct arguments or replies to messages.
+    """
+    # Clean command (/es_en@BotName -> es_en)
+    command = update.message.text.split()[0].replace('/', '').split('@')[0]
+    
+    text_to_translate = ""
+
+    # 1. Direct arguments (/es_en Hello)
+    if context.args:
+        text_to_translate = " ".join(context.args)
+    
+    # 2. Reply to message (/es_en replying to someone)
+    elif update.message.reply_to_message:
+        original = update.message.reply_to_message
+        text_to_translate = original.text or original.caption or ""
+
+    if not text_to_translate:
+        await update.message.reply_text("Please provide text or reply to a message to translate.")
+        return
+
+    # Define languages
+    lang_map = {
+        "es_en": "Spanish to English",
+        "en_es": "English to Spanish"
+    }
+    direction = lang_map.get(command, "Spanish to English")
+
+    await context.bot.send_chat_action(chat_id=update.effective_chat.id, action=constants.ChatAction.TYPING)
+
+    prompt = f"Translate the following text from {direction}. Output ONLY the translation:\n\n{text_to_translate}"
+    
+    messages = [
+        {"role": "system", "content": "You are a professional translator."},
+        {"role": "user", "content": prompt}
+    ]
+
+    try:
+        # Asynchronous API Call
+        translation = await llm_api.get_api_llm(
+            messages,
+            config.API_TOKEN,
+            config.API_URL,
+            config.LLM_MODEL,
+            config.PROVIDER,
+            MAX_OUTPUT_TOKENS=800
+        )
+        await update.message.reply_text(translation)
+
+    except Exception as e:
+        logger.error(f"Translation error: {e}")
+        await update.message.reply_text(f"Error: {str(e)}")
+</file>
+
+<file path="src/telegram_bot/handlers/video.py">
+import os
+import asyncio
+import logging
+import shutil
+from telegram import Update, constants
+from telegram.ext import ContextTypes
+
+from ..services import video_api
+
+logger = logging.getLogger(__name__)
+
+async def dl_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handles the /dl command, extracting URL from arguments or replies."""
+    
+    url = None
+
+    # 1. Priority: Did the user write the URL with the command? (/dl https://...)
+    if context.args:
+        url = context.args[0]
+    
+    # 2. Secondary: Is it a reply to another message?
+    elif update.message.reply_to_message:
+        original_msg = update.message.reply_to_message
+        text_to_check = original_msg.text or original_msg.caption or ""
+        
+        # Look for the first "word" that looks like a URL
+        import re
+        # Simple regex to find http/https
+        found_urls = re.findall(r'(https?://[^\s]+)', text_to_check)
+        if found_urls:
+            url = found_urls[0]
+
+    # 3. Validation
+    if not url:
+        await update.message.reply_text("No link found. Use `/dl [url]` or reply to a message containing a link.")
+        return
+
+    chat_id = update.effective_chat.id
+    
+    # Initial feedback
+    status_msg = await update.message.reply_text("⏳ Processing video... (this may take a few seconds)")
+    await context.bot.send_chat_action(chat_id=chat_id, action=constants.ChatAction.UPLOAD_VIDEO)
+
+    video_path = None
+    try:
+        # 2. EXECUTE IN SEPARATE THREAD (Concurrency Magic)
+        # This frees the bot to continue responding to others while downloading
+        video_path = await asyncio.to_thread(video_api.download_video, url)
+
+        # 3. Check size (Telegram has strict limits for bots)
+        file_size = os.path.getsize(video_path)
+        if file_size > 50 * 1024 * 1024: # 50MB
+            await status_msg.edit_text("❌ The video is too large to send via Telegram (>50MB).")
+            return
+
+        # 4. Send Video
+        # open(video_path, 'rb') opens the file for binary reading
+        await update.message.reply_video(
+            video=open(video_path, 'rb'),
+            caption=f"🎥 Here is your video",
+            supports_streaming=True,
+            read_timeout=120, 
+            write_timeout=120
+        )
+        
+        # Delete "Processing..." message
+        await status_msg.delete()
+
+    except ValueError as e:
+        await status_msg.edit_text(f"⚠️ {str(e)}")
+    except Exception as e:
+        logger.error("Download error: %s", e, exc_info=True)
+        await status_msg.edit_text("🚨 Download failed. Please check if the link is public and valid.")
+    
+    finally:
+        # 5. MANDATORY CLEANUP
+        # video_api creates a temp folder, we must delete it or the file
+        if video_path and os.path.exists(video_path):
+            try:
+                # Delete the container folder created by mkdtemp in the service
+                folder = os.path.dirname(video_path)
+                shutil.rmtree(folder, ignore_errors=True)
+            except OSError:
+                pass
+</file>
+
+<file path="src/telegram_bot/services/llm_api.py">
+import logging
+import httpx
+from httpx import RequestError, HTTPStatusError
+
+logger = logging.getLogger(__name__)
+
+
+def is_missing_env(*args):
+    """Checks if any required environment variable is missing."""
+    return any(arg is None for arg in args)
+
+
+def parse_response(response: dict, provider: str) -> str:
+    provider = provider.lower()
+    try:
+        if provider in ("openai", "deepseek", "groq"):
+            if "choices" in response:
+                message = response["choices"][0]["message"]
+                content = message.get("content")
+                if content and content.strip():
+                    return content
+        
+        elif provider == "google":
+            return response["candidates"][0]["content"]["parts"][0]["text"]
+
+        raise KeyError(f"Estructura no reconocida para el proveedor: {provider}")
+
+    except (KeyError, IndexError, TypeError) as e:
+        logger.error(f"Error parseando: {e}. Respuesta: {response}")
+        error_data = response.get("error")
+        if isinstance(error_data, dict):
+            error_msg = error_data.get("message", "Error desconocido")
+        else:
+            error_msg = str(error_data) if error_data else "Estructura de JSON inválida"
+        raise RuntimeError(f"API Error: {error_msg}")
+
+
+async def get_api_llm(messages, API_TOKEN, API_URL, LLM_MODEL, PROVIDER, MAX_OUTPUT_TOKENS=1024):
+    """
+    Sends an asynchronous request to the LLM API provider and retrieves the response.
+
+    Args:
+        messages (list): List of message dicts (role, content).
+        API_TOKEN (str): The API Key.
+        API_URL (str): The endpoint URL.
+        LLM_MODEL (str): The model name.
+        PROVIDER (str): 'google', 'openai', or 'deepseek'.
+        MAX_OUTPUT_TOKENS (int): Max tokens for the response.
+
+    Returns:
+        str: The generated text from the AI.
+    """
+    if is_missing_env(API_TOKEN, API_URL, LLM_MODEL, PROVIDER):
+        raise ValueError("Missing some value of a key in .env. Please check it.")
+
+    # Provider configuration
+    provider_config = {
+        "openai": {
+            "headers": {"Authorization": f"Bearer {API_TOKEN}", "Content-Type": "application/json"},
+            "data": {
+                "model": LLM_MODEL,
+                "messages": messages,
+                "max_tokens": int(MAX_OUTPUT_TOKENS),
+            },
+        },
+        "google": {
+            "headers": {"Content-Type": "application/json"},
+            "data": {
+                "contents": [
+                    {
+                        "role": "user" if msg["role"] in ["system", "user"] else "model",
+                        "parts": [{"text": msg["content"]}],
+                    }
+                    for msg in messages
+                ],
+                "generationConfig": {
+                    "maxOutputTokens": int(MAX_OUTPUT_TOKENS),
+                    "temperature": 0.9,
+                    "topP": 1,
+                },
+            },
+        },
+        "deepseek": {
+            "headers": {
+                "Content-Type": "application/json",
+                "Accept": "application/json",
+                "Authorization": f"Bearer {API_TOKEN}",
+            },
+            "data": {
+                "messages": messages,
+                "model": LLM_MODEL,
+                "max_tokens": int(MAX_OUTPUT_TOKENS),
+                "temperature": 0.7,
+                "stream": False,
+            },
+        },
+        "groq": {
+            "headers": {
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {API_TOKEN}"
+            },
+            "data": {
+                "model": LLM_MODEL,
+                "messages": messages,
+                "temperature": 0.5,
+                "stream": False,
+                "max_completion_tokens": int(MAX_OUTPUT_TOKENS),
+                "reasoning_effort": "medium"
+            },
+        },
+    }
+
+    try:
+        config_req = provider_config[PROVIDER.lower()]
+    except KeyError:
+        raise KeyError(f"❌ Unsupported provider: {PROVIDER}")
+
+    # Use AsyncClient for non-blocking requests. High timeout (30s) as LLMs can be slow.
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        try:
+            # await: Non-blocking magic happens here
+            response = await client.post(
+                API_URL, json=config_req["data"], headers=config_req["headers"]
+            )
+            response.raise_for_status()  # Raises error if status is not 200 OK
+
+            return parse_response(response.json(), PROVIDER)
+
+        except HTTPStatusError as e:
+            # Handle HTTP errors (404, 500, 401)
+            status_code = e.response.status_code
+            error_message = f"API request failed (status {status_code})"
+
+            if status_code == 401:
+                error_message = "❌ Authentication failed: Invalid API token"
+            elif status_code == 429:
+                error_message = "❌ Rate limit exceeded"
+            elif status_code >= 500:
+                error_message = "❌ Service temporarily unavailable."
+
+            logger.error("API Error %s: %s", status_code, e.response.text)
+            raise ConnectionError(error_message) from e
+
+        except RequestError as e:
+            # Handle Network errors (DNS, Timeout, No Internet)
+            logger.error("Connection error on API LLM %s", str(e))
+            raise ConnectionError("❌ Network connection failed") from e
+</file>
+
+<file path="Dockerfile">
+# ==========================================
+# STAGE 1: Builder (Temporary, we compile everything here)
+# ==========================================
+FROM python:3.12-slim as builder
+
+# 1. Install tools for compiling (Will be discarded later)
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends build-essential git
+
+# 2. Install Poetry
+RUN pip install "poetry==2.0.1"
+
+# 3. Configure Poetry to create the venv INSIDE the project
+ENV POETRY_NO_INTERACTION=1 \
+    POETRY_VIRTUALENVS_IN_PROJECT=1 \
+    POETRY_VIRTUALENVS_CREATE=1
+
+WORKDIR /app
+
+# 4. Install dependencies
+COPY pyproject.toml poetry.lock ./
+RUN poetry install --no-root --only main
+
+# ==========================================
+# STAGE 2: Runner (Lightweight Final Image)
+# ==========================================
+FROM python:3.12-slim
+
+# 1. Install ONLY runtime dependencies (FFmpeg is vital for audio/video)
+# We delete apt lists at the end to save space
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends ffmpeg && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# 2. Copy the virtual environment from the 'builder' stage
+# This is what saves space: we don't bring poetry, gcc, or git.
+COPY --from=builder /app/.venv /app/.venv
+
+# 3. Copy source code
+COPY src/ ./src/
+
+# 4. Configure the PATH to use the virtual environment automatically
+ENV PATH="/app/.venv/bin:$PATH"
+ENV PYTHONPATH="/app/src"
+
+# 5. Execute
+CMD ["uvicorn", "telegram_bot.main:app", "--host", "0.0.0.0", "--port", "8080"]
+</file>
+
+<file path="pyproject.toml">
+[project]
+name = "telebotapillm"
+version = "0.1.0"
+description = ""
+package-mode = false
+authors = [
+    {name = "MrTanuk",email = "louismario.rr@gmail.com"}
+]
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "python-telegram-bot (>=22.5,<23.0)",
+    "fastapi (>=0.123.5,<0.124.0)",
+    "uvicorn (>=0.38.0,<0.39.0)",
+    "httpx (>=0.28.1,<0.29.0)",
+    "python-dotenv (>=1.2.1,<2.0.0)",
+    "yt-dlp (>=2025.11.12,<2026.0.0)",
+    "speechrecognition (>=3.14.4,<4.0.0)",
+    "pydub (>=0.25.1,<0.26.0)",
+    "cachetools (>=6.2.3,<7.0.0)",
+    "requests (>=2.32.5,<3.0.0)"
+]
+
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry.group.dev.dependencies]
+black = "^25.11.0"
+isort = "^7.0.0"
+</file>
+
+<file path="README.md">
+# 🚀 Async AI & Media Telegram Bot
+
+![Python](https://img.shields.io/badge/Python-3.11%2B-blue?logo=python)
+![FastAPI](https://img.shields.io/badge/FastAPI-0.109%2B-009688?logo=fastapi)
+![Telegram](https://img.shields.io/badge/Telegram-Bot%20API-2CA5E0?logo=telegram)
+![Poetry](https://img.shields.io/badge/Poetry-Dependency%20Manager-blueviolet?logo=poetry)
+![Docker](https://img.shields.io/badge/Docker-Ready-2496ED?logo=docker)
+
+A high-performance, asynchronous Telegram bot built with **FastAPI** and **Python-Telegram-Bot (v20+)**.
+
+This bot features concurrent processing for heavy tasks (video downloading, audio transcription) and seamless integration with multiple LLM providers (Google Gemini, OpenAI, DeepSeek).
+
+## ✨ Key Features
+
+- **⚡ Asynchronous & Concurrent:**
+  - Built on `FastAPI` (ASGI) for high-throughput webhook handling.
+  - Heavy tasks (video downloads, speech-to-text) run in non-blocking threads, keeping the bot responsive.
+- **🧠 Advanced AI Integration:**
+  - Supports **Google Gemini**, **OpenAI**, and **DeepSeek**.
+  - **Context Aware:** Remembers conversation history per chat.
+  - **Smart Replies:** Can analyze replied messages (e.g., reply to a long text with `/ask Summarize this`).
+
+- **🎬 Multimedia Downloader:**
+  - Downloads videos from **Instagram**, **TikTok**, **Facebook**, and **YouTube**.
+  - Uses `yt-dlp`
+  - Automatic video compression for Telegram limits.
+
+- **🗣️ Speech-to-Text:**
+  - Transcribes voice notes into text automatically.
+  - Users can talk to the AI using voice messages.
+
+- **🛡️ Smart Group Management:**
+  - **Anti-Spam Filter:** In groups, the bot ignores generic commands (`/help`). It only responds to direct mentions (`/help@MyBot`) or private chats.
+
+## 🛠️ Tech Stack
+
+- **Framework:** FastAPI + Uvicorn
+- **Bot Library:** python-telegram-bot (v20+ Async)
+- **Dependency Manager:** Poetry
+- **HTTP Client:** HTTPX (Async)
+- **Media Processing:** yt-dlp, FFmpeg, SpeechRecognition
+
+## 🚀 Getting Started
+
+### Prerequisites
+
+- Python 3.11 or higher
+- [Poetry](https://python-poetry.org/) installed
+- FFmpeg installed on your system
+- A Telegram Bot Token
+- An API Key for your LLM provider (Google/OpenAI)
+
+### 1. Installation
+
+Clone the repository and install dependencies using Poetry:
+
+```
+git clone https://github.com/MrTanuk/TeleBotAPILLM.git
+cd TeleBotAPILLM
+
+# Install dependencies
+poetry install
+
+# Activate the virtual environment
+poetry env activate
+```
+
+### 2. Configuration
+
+Create a .env file in the root directory:
+
+```
+cp .env.example .env
+```
+
+Fill in your credentials:
+
+```bash
+
+# --- Bot Configuration ---
+BOT_TOKEN=your_telegram_bot_token_here
+
+# --- LLM Configuration ---
+# Options provider: google, openai, deepseek
+PROVIDER=
+API_TOKEN=
+LLM_MODEL=
+# Google Base URL: https://generativelanguage.googleapis.com/v1beta/models
+API_URL=
+SYSTEM_MESSAGE="You are a helpful and sarcastic AI assistant."
+MAX_OUTPUT_TOKENS=800
+
+# --- Hosting ---
+# 'development' (Polling) or 'production' (Webhook)
+HOSTING=development
+WEBHOOK_URL=
+PORT=
+```
+
+### 3. Running the Bot
+
+**Development Mode (Polling):**  
+Ideal for local testing. No webhook/domain required.
+
+```bash
+poetry run python -m src.telegram_bot.main
+```
+
+**Production Mode (Webhook):**  
+Runs the FastAPI server. Requires HOSTING=production in .env.
+
+```bash
+uvicorn src.telegram_bot.main:app --host 0.0.0.0 --port 8080
+```
+
+## 🐳 Docker Deployment
+
+The project includes an optimized Dockerfile.
+
+1. **Build the image:**
+
+```
+docker build -t telegram-ai-bot .
+```
+
+2. **Run the container:**
+
+```
+docker run -d \
+  --env-file .env \
+  -p 8080:8080 \
+  --name my-bot \
+  telegram-ai-bot
+```
+
+## 🤖 Commands
+
+| Command  | Usage             | Description                                      |
+| -------- | ----------------- | ------------------------------------------------ |
+| `/start` | `/start`          | Check if the bot is alive.                       |
+| `/help`  | `/help`           | Show all commands and their functions            |
+| `/ask`   | `/ask [question]` | Ask the AI. Supports replying to other messages. |
+| `/dl`    | `/dl [question]`  | Download video from Insta/TikTok/FB/YouTube.     |
+| `/es_en` | `/es_en`          | Translate Spanish to English.                    |
+| `/en_es` | `/en_es`          | Translate English to Spanish.                    |
+| `/clear` | `/clear`          | Reset AI conversation history.                   |
+| Voice    | _Send audio_      | Transcribes audio and sends it to AI.            |
+
+> **Note:** In groups, append the bot username (e.g., /ask@MyBotName) for the command to work.
+
+## 📂 Project Structure
+
+```
+├── src/telegram_bot/
+│   ├── handlers/        # Command logic (AI, Video, Audio)
+│   ├── services/        # External API logic (LLM, yt-dlp)
+│   ├── config.py        # Environment & Setup
+│   ├── custom_filters.py# Group vs Private logic
+│   └── main.py          # Entry point (FastAPI + Bot App)
+├── Dockerfile           # Production container
+├── pyproject.toml       # Poetry dependencies
+└── README.md            # Documentation
+```
+
+## 📄 License
+
+This project is licensed under the MIT License.
+</file>
+
+<file path="src/telegram_bot/handlers/ai.py">
+import logging
+from datetime import datetime, timezone
+from telegram import Update, constants
+from telegram.ext import ContextTypes
+from telegram.error import BadRequest
+
+from .. import config
+from ..services import llm_api
+
+logger = logging.getLogger(__name__)
+
+# --- Commands ---
+
+async def clear_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Clears the conversation history."""
+    # context.chat_data is a persistent dictionary in memory for this chat
+    context.chat_data['conversation'] = []
+    context.chat_data['last_active'] = None
+    await update.message.reply_text("♻️ Conversation history has been cleared.")
+
+async def ask_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handles the /ask command, supporting replies to other messages."""
+    
+    # 1. Text written by User B (who invokes the command)
+    user_instruction = " ".join(context.args) if context.args else ""
+    
+    # 2. Text from User A (the replied message)
+    reply_content = ""
+    if update.message.reply_to_message:
+        # Could be normal text or caption (text under photo/video)
+        if update.message.reply_to_message.text:
+            reply_content = update.message.reply_to_message.text
+        elif update.message.reply_to_message.caption:
+            reply_content = update.message.reply_to_message.caption
+
+    # 3. Combination Logic
+    final_prompt = ""
+    
+    if reply_content and user_instruction:
+        # Case: Replying with instruction ("Summarize", "Translate", "Opinion")
+        final_prompt = f"Original message context: '{reply_content}'\n\nMy instruction: {user_instruction}"
+    elif reply_content and not user_instruction:
+        # Case: Just /ask replying to a message
+        final_prompt = f"Analyze and respond to this message: '{reply_content}'"
+    elif user_instruction:
+        # Case: Normal use without replying
+        final_prompt = user_instruction
+    else:
+        # Case: No text and no reply
+        await update.message.reply_text("Please write a question or reply to a message with `/ask`.")
+        return
+
+    # Send to core logic
+    await process_ai_interaction(update, context, final_prompt)
+
+async def handle_private_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handles text messages in private chats without commands."""
+    # Filter if it is a command (good practice even if PTB filters it)
+    if update.message.text.startswith('/'):
+        return
+    await process_ai_interaction(update, context, update.message.text)
+
+
+# --- Core Logic ---
+
+async def process_ai_interaction(update: Update, context: ContextTypes.DEFAULT_TYPE, user_text: str):
+    """
+    Main function to manage AI interaction: history, API call, and response.
+    """
+    try:
+        chat_id = update.effective_chat.id
+        
+        # 1. Visual Feedback (Typing...)
+        await context.bot.send_chat_action(chat_id=chat_id, action=constants.ChatAction.TYPING)
+
+        # 2. History Management using context.chat_data
+        # Initialize if not exists
+        if 'conversation' not in context.chat_data:
+            context.chat_data['conversation'] = [{"role": "system", "content": config.SYSTEM_MESSAGE}]
+        
+        # Check inactivity time (1 hour)
+        last_active = context.chat_data.get('last_active')
+        current_time = datetime.now(timezone.utc)
+        
+        if last_active and (current_time - last_active).total_seconds() > 3600:
+            context.chat_data['conversation'] = [{"role": "system", "content": config.SYSTEM_MESSAGE}]
+            await update.message.reply_text("🕒 Chat history reset due to inactivity.")
+
+        # 3. Update history
+        context.chat_data['last_active'] = current_time
+        conversation = context.chat_data['conversation']
+        conversation.append({"role": "user", "content": user_text})
+        
+        # Limit history (last 25 messages + system prompt)
+        # Keep [0] (System) and the last 25
+        if len(conversation) > 26:
+            conversation = [conversation[0]] + conversation[-25:]
+            context.chat_data['conversation'] = conversation
+
+        # 4. ASYNCHRONOUS API Call (Using the await from the new service)
+        ai_response = await llm_api.get_api_llm(
+            conversation,
+            config.API_TOKEN,
+            config.API_URL,
+            config.LLM_MODEL,
+            config.PROVIDER,
+            config.MAX_OUTPUT_TOKENS
+        )
+
+        # 5. Save response and send
+        conversation.append({"role": "assistant", "content": ai_response})
+        
+        await update.message.reply_text(ai_response, parse_mode="Markdown")
+
+    except BadRequest as e:
+        logger.warning(f"Markdown failed, Sending text plain. Error: {e}")
+        try:
+            await update.message.reply_text(ai_response)
+        except Exception as e2:
+            logger.error(f"Error sending the answer: {e2}")
+            await update.message.reply_text("🚨 Error sending the answer")
+
+    except Exception as e:
+        logger.error("Error in AI handler: %s", e, exc_info=True)
+
+        error_msg = "🚨 Sorry, technical problem"
+
+        try:
+            await update.message.reply_text(error_msg)
+        except:
+            pass
+</file>
+
+<file path="src/telegram_bot/config.py">
+import os
+import logging
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
+
+
+def setup_logging():
+    """
+    Configures the global logging settings.
+    """
+    logging.basicConfig(
+        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+        level=logging.INFO,
+    )
+    # Silence httpx info logs to reduce noise
+    logging.getLogger("httpx").setLevel(logging.WARNING)
+
+
+# --- Credentials ---
+BOT_TOKEN = os.getenv("BOT_TOKEN")
+if not BOT_TOKEN:
+    raise ValueError("❌ BOT_TOKEN is not defined in the environment.")
+
+# --- LLM Configuration ---
+PROVIDER = os.getenv("PROVIDER")
+API_TOKEN = os.getenv("API_TOKEN")
+LLM_MODEL = os.getenv("LLM_MODEL")
+SYSTEM_MESSAGE = os.getenv("SYSTEM_MESSAGE")
+MAX_OUTPUT_TOKENS = int(os.getenv("MAX_OUTPUT_TOKENS", 700))
+_BASE_API_URL = os.getenv("API_URL")  # Read base URL from .env
+
+if PROVIDER and PROVIDER.lower() == "google":
+    # Google Gemini requires a specifically constructed URL:
+    # https://.../models/gemini-pro:generateContent?key=XYZ
+    API_URL = f"{_BASE_API_URL}/{LLM_MODEL}:generateContent?key={API_TOKEN}"
+else:
+    # For OpenAI/DeepSeek the URL in .env is already correct
+    API_URL = _BASE_API_URL
+
+# --- Webhook & Hosting Configuration ---
+WEBHOOK_URL = os.getenv("WEBHOOK_URL")
+PORT = int(os.environ.get("PORT", 8080))
+HOSTING = os.environ.get("HOSTING", "development")
+</file>
+
+<file path="src/telegram_bot/handlers/audio.py">
+import logging
+import asyncio
+from telegram import Update, constants
+from telegram.ext import ContextTypes
+
+from ..services.speech_to_text import speech
+from .ai import process_ai_interaction
+
+logger = logging.getLogger(__name__)
+
+async def handle_voice(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handles voice notes, transcribes them, and sends the text to the AI."""
+    
+    # Visual feedback
+    await context.bot.send_chat_action(chat_id=update.effective_chat.id, action=constants.ChatAction.TYPING)
+    
+    try:
+        # 1. Get file information
+        voice = update.message.voice
+        file_id = voice.file_id
+        
+        # If too large (>20MB), better ignore to not block RAM
+        if voice.file_size > 20 * 1024 * 1024:
+            await update.message.reply_text("⚠️ Voice note too large.")
+            return
+
+        # 2. Download file to memory (Async)
+        new_file = await context.bot.get_file(file_id)
+        file_byte_array = await new_file.download_as_bytearray()
+
+        # 3. Transcribe in a THREAD (Blocking -> Non-blocking)
+        transcribed_text = await asyncio.to_thread(speech, file_byte_array)
+
+        if not transcribed_text:
+            await update.message.reply_text("😓 I couldn't understand the audio.")
+            return
+
+        # Confirm to user what the bot understood
+        await update.message.reply_text(f"🎤 *Transcription:* {transcribed_text}")
+
+        # 4. Send to AI
+        # Reusing the function you already wrote in ai.py
+        await process_ai_interaction(update, context, transcribed_text)
+
+    except Exception as e:
+        logger.error(f"Error handling voice: {e}", exc_info=True)
+        await update.message.reply_text("🚨 Error processing audio.")
+</file>
+
+<file path="src/telegram_bot/main.py">
+import logging
+import warnings
+from contextlib import asynccontextmanager
+from cachetools import TTLCache
+from fastapi import FastAPI, Request, Response
+from telegram import Update
+from telegram.ext import (
+    ApplicationBuilder,
+    Application,
+    CommandHandler,
+    MessageHandler,
+    filters,
+    ContextTypes,
+)
+
+from . import config
+
+# Import handlers
+from .handlers import ai, video, audio, translate
+from .custom_filters import TARGETED_OR_PRIVATE
+
+# Logger setup
+config.setup_logging()
+logger = logging.getLogger(__name__)
+
+processed_updates = TTLCache(maxsize=1000, ttl=300)
+
+# Filter syntax warnings from pydub due to Python version strictness
+warnings.filterwarnings("ignore", category=SyntaxWarning, module="pydub")
+
+
+# --- 1. Define Basic Handlers ---
+async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handles the /start command."""
+    user = update.effective_user.first_name
+    await update.message.reply_text(f"Hello {user}! What can I do for you?")
+
+
+async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Muestra el mensaje de bienvenida y ayuda."""
+    user = update.effective_user.first_name
+    help_text = (
+        f"👋 Hello {user}!\n\n"
+        "🤖 **Available Commands:**\n\n"
+        "✨ /ask `[text]` - Ask the AI (or reply to a message)\n"
+        "🧹 /clear - Reset conversation history\n"
+        "🎬 /dl `[url]` - Download video (Insta/TikTok/FB)\n"
+        r"🇪🇸 /es\_en - Translate to English\n"
+        r"🇬🇧 /en\_es - Translate to Spanish\n"
+        "🎤 **Voice Note** - I will transcribe and answer via audio\n\n"
+        "ℹ️ *In groups, remember to mention me:* `/ask@MyBot ...`"
+    )
+    await update.message.reply_text(help_text, parse_mode="Markdown")
+
+
+# --- 2. Helper Function to Register Everything (AVOIDS DUPLICATION) ---
+def register_handlers(application: Application):
+    """
+    Registers all commands for both Webhook and Polling modes.
+    Follows DRY principle.
+    """
+    # 1. General Commands
+    # filters=TARGETED_OR_PRIVATE performs the magic of filtering group spam
+    application.add_handler(
+        CommandHandler("start", start_command, filters=TARGETED_OR_PRIVATE)
+    )
+    application.add_handler(
+        CommandHandler("help", help_command, filters=TARGETED_OR_PRIVATE)
+    )
+
+    # 2. AI
+    application.add_handler(
+        CommandHandler("ask", ai.ask_command, filters=TARGETED_OR_PRIVATE)
+    )
+    application.add_handler(
+        CommandHandler("clear", ai.clear_command, filters=TARGETED_OR_PRIVATE)
+    )
+
+    # 3. Video
+    application.add_handler(
+        CommandHandler("dl", video.dl_command, filters=TARGETED_OR_PRIVATE)
+    )
+
+    # 4. Translation
+    application.add_handler(
+        CommandHandler(
+            ["es_en", "en_es"], translate.translate_command, filters=TARGETED_OR_PRIVATE
+        )
+    )
+
+    # 5. Audio (Voice Notes) - This is not a text command, but a message type
+    application.add_handler(
+        MessageHandler(filters.VOICE & filters.ChatType.PRIVATE, audio.handle_voice)
+    )
+
+    # 6. Private Text for AI (This stays the same, already restricted to PRIVATE)
+    application.add_handler(
+        MessageHandler(
+            filters.ChatType.PRIVATE & filters.TEXT & ~filters.COMMAND,
+            ai.handle_private_text,
+        )
+    )
+
+
+# --- 3. Lifespan Logic (for FastAPI) ---
+ptb_application: Application = None
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    global ptb_application
+
+    # --- STARTUP ---
+    logger.info("🚀 Starting Bot Application (Webhook Mode)...")
+    ptb_application = ApplicationBuilder().token(config.BOT_TOKEN).build()
+
+    # Use the helper function
+    register_handlers(ptb_application)
+
+    await ptb_application.initialize()
+    await ptb_application.start()
+
+    if config.HOSTING == "production":
+        webhook_url = f"{config.WEBHOOK_URL}/webhook"
+        logger.info(f"Configuring Webhook at: {webhook_url}")
+        await ptb_application.bot.set_webhook(url=webhook_url)
+    else:
+        # In development with FastAPI + Ngrok, for example
+        await ptb_application.bot.delete_webhook()
+
+    yield  # FastAPI runs here
+
+    # --- SHUTDOWN ---
+    logger.info("🛑 Stopping Bot...")
+    if ptb_application:
+        await ptb_application.stop()
+        await ptb_application.shutdown()
+
+
+# --- 4. Initialize FastAPI ---
+app = FastAPI(lifespan=lifespan)
+
+
+@app.api_route("/", methods=["GET", "HEAD"])
+async def health_check():
+    return {"status": "ok", "bot": "active"}
+
+
+@app.post("/webhook")
+async def telegram_webhook(request: Request):
+    data = await request.json()
+    update = Update.de_json(data, ptb_application.bot)
+
+    if update.update_id in processed_updates:
+        logger.warning(f"⚠️ Update {update.update_id} duplicated (Telegram retry).")
+        return Response(status_code=200)
+
+    processed_updates[update.update_id] = True
+    await ptb_application.process_update(update)
+    return Response(status_code=200)
+
+
+# --- 5. Entry Point for Polling (Classic Local Development) ---
+def run_polling():
+    """
+    Runs WITHOUT FastAPI, directly with the Telegram library.
+    Ideal for local testing without configuring ngrok or ports.
+    """
+    logger.info("Polling Mode: Starting...")
+
+    # Create a LOCAL instance, do not use the global ptb_application
+    app_bot = ApplicationBuilder().token(config.BOT_TOKEN).build()
+
+    # Use the SAME registration function
+    register_handlers(app_bot)
+
+    logger.info("🤖 Bot listening... (Ctrl+C to stop)")
+    app_bot.run_polling()
+
+
+if __name__ == "__main__":
+    if config.HOSTING == "production":
+        # If production, start the web server
+        import uvicorn
+
+        logger.info("⚠️ Running production mode locally via Python script...")
+        uvicorn.run(
+            "src.telegram_bot.main:app", host="0.0.0.0", port=config.PORT, reload=True
+        )
+    else:
+        # If in dev and no webhook configured, use direct Polling
+        logger.info("🧑‍💻 Running development mode...")
+        run_polling()
+</file>
+
+<file path="src/telegram_bot/services/video_api.py">
+import os
+import re
+import logging
+import tempfile
+import shutil
+import requests
+from yt_dlp import YoutubeDL
+
+logger = logging.getLogger(__name__)
+
+COBALT_API_URL = "https://cobalt-api.meowing.de"
+
+
+def download_video(url):
+    """
+    Try to download via Cobalt (External API). If it fails, use local yt-dlp with mobile camouflage.
+    """
+    if not re.search(
+        r"(youtube|youtu\.be|facebook|instagram|tiktok|twitter|x\.com)",
+        url,
+        re.IGNORECASE,
+    ):
+        raise ValueError("❌ Link not supported.")
+
+    temp_dir = tempfile.mkdtemp()
+    filename = os.path.join(temp_dir, "video.mp4")
+
+    try:
+        logger.info(f"🔄 Attempting download via Cobalt...")
+
+        headers = {
+            "Accept": "application/json",
+            "Content-Type": "application/json",
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+        }
+
+        payload = {
+            "url": url,
+            "vQuality": "720",
+            "filenamePattern": "basic",
+            "isAudioOnly": False,
+        }
+
+        response = requests.post(
+            f"{COBALT_API_URL}/", json=payload, headers=headers, timeout=15
+        )
+
+        if response.status_code != 200:
+            logger.warning(f"⚠️ Cobalt error {response.status_code}: {response.text}")
+            raise ConnectionError("Cobalt API Error")
+
+        data = response.json()
+
+        if "url" in data:
+            video_url = data["url"]
+            with requests.get(video_url, stream=True) as r:
+                r.raise_for_status()
+                with open(filename, "wb") as f:
+                    for chunk in r.iter_content(chunk_size=8192):
+                        f.write(chunk)
+
+            logger.info("✅ Successful download via Cobalt")
+            return filename
+        else:
+            logger.warning(f"⚠️ Unexpected Cobalt response: {data}")
+
+    except Exception as e:
+        logger.warning(f"⚠️ Cobalt failed ({str(e)}), switching to local yt-dlp...")
+
+    try:
+        is_youtube = "youtube" in url.lower() or "youtu.be" in url.lower()
+
+        if is_youtube:
+            format_spec = (
+                "bestvideo[ext=mp4][height<=720]+bestaudio[ext=m4a]/best[ext=mp4]/best"
+            )
+        else:
+            format_spec = "best[ext=mp4]/bestvideo+bestaudio/best"
+
+        ydl_opts = {
+            "outtmpl": f"{temp_dir}/%(id)s.%(ext)s",
+            "format": format_spec,
+            "quiet": True,
+            "no_warnings": True,
+            "noplaylist": True,
+            "max_filesize": 50 * 1024 * 1024,
+            "merge_output_format": "mp4",
+            "extractor_args": {
+                "youtube": {
+                    "player_client": ["android", "ios"],
+                    "player_skip": ["web", "tv"],
+                },
+                "tiktok": {
+                    "app_version": ["30.0.0"],
+                    "manifest_app_version": ["30.0.0"],
+                },
+            },
+            "http_headers": {
+                "User-Agent": "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36",
+            },
+            "geo_bypass": True,
+        }
+
+        with YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(url, download=True)
+            video_title = info.get("title", "Unknown Video")
+            logger.info(f"📥 Downloaded via yt-dlp: {video_title}")
+
+            downloaded_files = [f for f in os.listdir(temp_dir) if f != "video.mp4"]
+
+            if downloaded_files:
+                return os.path.join(temp_dir, downloaded_files[0])
+            else:
+                raise RuntimeError("Downloaded file not found on disk.")
+
+    except Exception as e:
+        shutil.rmtree(temp_dir, ignore_errors=True)
+        error_msg = str(e).lower()
+        if "sign in" in error_msg:
+            raise ValueError("🔒 It couldn't download video")
+        raise e
+</file>
+
+</files>
