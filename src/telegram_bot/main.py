@@ -1,9 +1,11 @@
 import logging
+import argparse
+import uvicorn
 import warnings
 from contextlib import asynccontextmanager
 from cachetools import TTLCache
 from fastapi import FastAPI, Request, Response
-from telegram import Update
+from telegram import Update, Command
 from telegram.ext import (
     ApplicationBuilder,
     Application,
@@ -16,7 +18,7 @@ from telegram.ext import (
 from . import config
 
 # Import handlers
-from .handlers import ai, video, audio, translate
+from .handlers import ai, audio, translate
 from .custom_filters import TARGETED_OR_PRIVATE
 
 # Logger setup
@@ -44,9 +46,9 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "🤖 **Available Commands:**\n\n"
         "✨ /ask `[text]` - Ask the AI (or reply to a message)\n"
         "🧹 /clear - Reset conversation history\n"
-        "🎬 /dl `[url]` - Download video (Insta/TikTok/FB)\n"
-        r"🇪🇸 /es\_en - Translate to English\n"
-        r"🇬🇧 /en\_es - Translate to Spanish\n"
+        # "🎬 /dl `[url]` - Download video (Insta/TikTok/FB)\n"
+        "🇪🇸 /es\\_en - Translate to English\n"
+        "🇬🇧 /en\\_es - Translate to Spanish\n"
         "🎤 **Voice Note** - I will transcribe and answer via audio\n\n"
         "ℹ️ *In groups, remember to mention me:* `/ask@MyBot ...`"
     )
@@ -67,6 +69,11 @@ def register_handlers(application: Application):
     application.add_handler(
         CommandHandler("help", help_command, filters=TARGETED_OR_PRIVATE)
     )
+    application.add_handler(
+        MessageHandler(
+            filters.ChatType.GROUPS & filters.Entity("mention"), ai.handle_group_mention
+        )
+    )
 
     # 2. AI
     application.add_handler(
@@ -77,9 +84,9 @@ def register_handlers(application: Application):
     )
 
     # 3. Video
-    application.add_handler(
-        CommandHandler("dl", video.dl_command, filters=TARGETED_OR_PRIVATE)
-    )
+    # application.add_handler(
+    #     CommandHandler("dl", video.dl_command, filters=TARGETED_OR_PRIVATE)
+    # )
 
     # 4. Translation
     application.add_handler(
@@ -179,15 +186,23 @@ def run_polling():
 
 
 if __name__ == "__main__":
-    if config.HOSTING == "production":
-        # If production, start the web server
-        import uvicorn
+    parser = argparse.ArgumentParser(description="Execute Telegram Bot")
+    parser.add_argument(
+        "--mode",
+        choices=["polling", "webhook"],
+        default="polling",
+        help="Execution mode: 'polling' for local, 'webhook' for production"
+    )
+    args = parser.parse_args()
 
-        logger.info("⚠️ Running production mode locally via Python script...")
+    if args.mode == "webhook":
+        logger.info("⚠️ Running in WEBHOOK mode via Uvicorn...")
         uvicorn.run(
-            "src.telegram_bot.main:app", host="0.0.0.0", port=config.PORT, reload=True
+            "src.telegram_bot.main:app", 
+            host="0.0.0.0", 
+            port=config.PORT, 
+            reload=False
         )
     else:
-        # If in dev and no webhook configured, use direct Polling
-        logger.info("🧑‍💻 Running development mode...")
+        logger.info("🧑‍💻 Running in POLLING mode...")
         run_polling()

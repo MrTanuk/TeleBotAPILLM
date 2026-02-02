@@ -26,7 +26,7 @@ def download_video(url):
     filename = os.path.join(temp_dir, "video.mp4")
 
     try:
-        logger.info(f"🔄 Attempting download via Cobalt...")
+        logger.info("🔄 Attempting download via Cobalt...")
 
         headers = {
             "Accept": "application/json",

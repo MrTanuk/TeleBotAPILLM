@@ -1,45 +1,44 @@
 import logging
-import asyncio
 from telegram import Update, constants
 from telegram.ext import ContextTypes
 
-from ..services.speech_to_text import speech
+from ..services.speech_to_text import transcribe
 from .ai import process_ai_interaction
+from ..config import API_TOKEN
 
 logger = logging.getLogger(__name__)
 
+
 async def handle_voice(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handles voice notes, transcribes them, and sends the text to the AI."""
-    
-    # Visual feedback
-    await context.bot.send_chat_action(chat_id=update.effective_chat.id, action=constants.ChatAction.TYPING)
-    
+    """Handles voice notes, transcribes them via Groq, and sends to AI."""
+
+    chat_id = update.effective_chat.id
+    await context.bot.send_chat_action(
+        chat_id=chat_id, action=constants.ChatAction.TYPING
+    )
+
     try:
-        # 1. Get file information
         voice = update.message.voice
-        file_id = voice.file_id
-        
-        # If too large (>20MB), better ignore to not block RAM
-        if voice.file_size > 20 * 1024 * 1024:
-            await update.message.reply_text("⚠️ Voice note too large.")
+
+        if voice.file_size > 25 * 1024 * 1024:
+            await update.message.reply_text("⚠️ Audio too large to process.")
             return
 
-        # 2. Download file to memory (Async)
-        new_file = await context.bot.get_file(file_id)
+        new_file = await context.bot.get_file(voice.file_id)
         file_byte_array = await new_file.download_as_bytearray()
 
-        # 3. Transcribe in a THREAD (Blocking -> Non-blocking)
-        transcribed_text = await asyncio.to_thread(speech, file_byte_array)
+        transcribed_text = await transcribe(bytes(file_byte_array), API_TOKEN)
 
         if not transcribed_text:
-            await update.message.reply_text("😓 I couldn't understand the audio.")
+            await update.message.reply_text("😓 I couldn't hear anything in the audio.")
             return
 
-        # Confirm to user what the bot understood
-        await update.message.reply_text(f"🎤 *Transcription:* {transcribed_text}")
+        # Feedback visual de lo que entendió
+        await update.message.reply_text(
+            f"🎤 *You:* {transcribed_text}", parse_mode="Markdown"
+        )
 
-        # 4. Send to AI
-        # Reusing the function you already wrote in ai.py
+        # 3. Enviar a la IA
         await process_ai_interaction(update, context, transcribed_text)
 
     except Exception as e:
