@@ -74,37 +74,41 @@ async def process_ai_interaction(update: Update, context: ContextTypes.DEFAULT_T
         await context.bot.send_chat_action(chat_id=chat_id, action=constants.ChatAction.TYPING)
 
         # 2. History Management using context.chat_data
-        # Initialize if not exists
+        # Initialize if not exists (We start with an EMPTY list, no system message here)
         if 'conversation' not in context.chat_data:
-            context.chat_data['conversation'] = [{"role": "system", "content": config.SYSTEM_MESSAGE}]
+            context.chat_data['conversation'] = [] 
         
         # Check inactivity time (1 hour)
         last_active = context.chat_data.get('last_active')
         current_time = datetime.now(timezone.utc)
         
         if last_active and (current_time - last_active).total_seconds() > 3600:
-            context.chat_data['conversation'] = [{"role": "system", "content": config.SYSTEM_MESSAGE}]
+            context.chat_data['conversation'] = []
             await update.message.reply_text("🕒 Chat history reset due to inactivity.")
 
         # 3. Update history
         context.chat_data['last_active'] = current_time
         conversation = context.chat_data['conversation']
+        
+        # Append ONLY the user message to history
         conversation.append({"role": "user", "content": user_text})
         
-        # Limit history (last 25 messages + system prompt)
-        # Keep [0] (System) and the last 25
-        if len(conversation) > 26:
-            conversation = [conversation[0]] + conversation[-25:]
-            context.chat_data['conversation'] = conversation
+        # Limit history (keep last 20 messages to save tokens)
+        if len(conversation) > 20:
+            context.chat_data['conversation'] = conversation[-20:]
+            conversation = context.chat_data['conversation']
 
-        # 4. ASYNCHRONOUS API Call (Using the await from the new service)
+        # 4. ASYNCHRONOUS API Call
+        # We pass the SYSTEM_MESSAGE from config here. 
+        # This ensures updates to .env are applied immediately without clearing history.
         ai_response = await llm_api.get_api_llm(
             conversation,
             config.API_TOKEN,
             config.API_URL,
             config.LLM_MODEL,
             config.PROVIDER,
-            config.MAX_OUTPUT_TOKENS
+            MAX_OUTPUT_TOKENS=config.MAX_OUTPUT_TOKENS,
+            system_message=config.SYSTEM_MESSAGE
         )
 
         # 5. Save response and send
@@ -122,10 +126,7 @@ async def process_ai_interaction(update: Update, context: ContextTypes.DEFAULT_T
 
     except Exception as e:
         logger.error("Error in AI handler: %s", e, exc_info=True)
-
-        error_msg = "🚨 Sorry, technical problem"
-
         try:
-            await update.message.reply_text(error_msg)
+            await update.message.reply_text("🚨 Sorry, technical problem")
         except:
             pass
