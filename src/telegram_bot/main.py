@@ -5,7 +5,7 @@ import warnings
 from contextlib import asynccontextmanager
 from cachetools import TTLCache
 from fastapi import FastAPI, Request, Response
-from telegram import Update, Command
+from telegram import Update, BotCommand
 from telegram.ext import (
     ApplicationBuilder,
     Application,
