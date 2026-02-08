@@ -5,7 +5,7 @@ import warnings
 from contextlib import asynccontextmanager
 from cachetools import TTLCache
 from fastapi import FastAPI, Request, Response
-from telegram import Update, Command
+from telegram import Update
 from telegram.ext import (
     ApplicationBuilder,
     Application,
@@ -13,6 +13,7 @@ from telegram.ext import (
     MessageHandler,
     filters,
     ContextTypes,
+    PicklePersistence,
 )
 
 from . import config
@@ -117,9 +118,16 @@ ptb_application: Application = None
 async def lifespan(app: FastAPI):
     global ptb_application
 
+    storage_data = PicklePersistence(filepath="bot_data.pickle")
+
     # --- STARTUP ---
-    logger.info("🚀 Starting Bot Application (Webhook Mode)...")
-    ptb_application = ApplicationBuilder().token(config.BOT_TOKEN).build()
+    logger.info("🚀 Starting Bot Application...")
+    ptb_application = (
+        ApplicationBuilder()
+        .token(config.BOT_TOKEN)
+        .persistence(storage_data)
+        .build()
+    )
 
     # Use the helper function
     register_handlers(ptb_application)
@@ -173,10 +181,17 @@ def run_polling():
     Runs WITHOUT FastAPI, directly with the Telegram library.
     Ideal for local testing without configuring ngrok or ports.
     """
+    storage_data = PicklePersistence(filepath="bot_data.pickle")
+
     logger.info("Polling Mode: Starting...")
 
     # Create a LOCAL instance, do not use the global ptb_application
-    app_bot = ApplicationBuilder().token(config.BOT_TOKEN).build()
+    app_bot = (
+        ApplicationBuilder()
+        .token(config.BOT_TOKEN)
+        .persistence(storage_data)
+        .build()
+    )
 
     # Use the SAME registration function
     register_handlers(app_bot)
@@ -191,17 +206,14 @@ if __name__ == "__main__":
         "--mode",
         choices=["polling", "webhook"],
         default="polling",
-        help="Execution mode: 'polling' for local, 'webhook' for production"
+        help="Execution mode: 'polling' for local, 'webhook' for production",
     )
     args = parser.parse_args()
 
     if args.mode == "webhook":
         logger.info("⚠️ Running in WEBHOOK mode via Uvicorn...")
         uvicorn.run(
-            "src.telegram_bot.main:app", 
-            host="0.0.0.0", 
-            port=config.PORT, 
-            reload=False
+            "src.telegram_bot.main:app", host="0.0.0.0", port=config.PORT, reload=False
         )
     else:
         logger.info("🧑‍💻 Running in POLLING mode...")

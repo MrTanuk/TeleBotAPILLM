@@ -16,7 +16,7 @@ __pycache__/
 *.pyc
 *.pyd
 *.pyo
-
+bot_data.pickle
 
 .vscode/
 .idea/

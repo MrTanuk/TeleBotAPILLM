@@ -1,16 +1,19 @@
 services:
   telegram-bot:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile
     container_name: telegram-ai-bot
     restart: unless-stopped
 
     env_file:
       - .env
 
-    ports:
-      - "8080:8080"
-
     command: ["python", "-m", "src.telegram_bot.main", "--mode", "polling"]
 
     volumes:
       - ./src:/app/src
+      - bot_data:/app/data
+
+volumes:
+  bot_data:

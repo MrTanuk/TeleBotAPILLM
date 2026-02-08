@@ -11,13 +11,29 @@ logger = logging.getLogger(__name__)
 
 # --- Commands ---
 
+# --- Helper Functions ---
+
+
+def get_user_keys(user_id: int):
+    """
+    Generates unique keys for storage in chat_data based on the user’s ID.
+    This allows each user to have their own context in a group.
+    """
+    return f"conversation_{user_id}", f"last_active_{user_id}"
+
 
 async def clear_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Clears the conversation history."""
+
     # context.chat_data is a persistent dictionary in memory for this chat
-    context.chat_data["conversation"] = []
-    context.chat_data["last_active"] = None
-    await update.message.reply_text("♻️ Conversation history has been cleared.")
+
+    user_id = update.effective_user.id
+    history_key, time_key = get_user_keys(user_id)
+
+    context.chat_data[history_key] = []
+    context.chat_data[time_key] = None
+
+    await update.message.reply_text("♻️ Your conversation history has been cleared.")
 
 
 async def ask_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -97,6 +113,9 @@ async def process_ai_interaction(
     """
     try:
         chat_id = update.effective_chat.id
+        user_id = update.effective_user.id
+
+        history_key, time_key = get_user_keys(user_id)
 
         # 1. Visual Feedback (Typing...)
         await context.bot.send_chat_action(
@@ -105,28 +124,30 @@ async def process_ai_interaction(
 
         # 2. History Management using context.chat_data
         # Initialize if not exists (We start with an EMPTY list, no system message here)
-        if "conversation" not in context.chat_data:
-            context.chat_data["conversation"] = []
+        if history_key not in context.chat_data:
+            context.chat_data[history_key] = []
 
         # Check inactivity time (1 hour)
-        last_active = context.chat_data.get("last_active")
+        last_active = context.chat_data.get(time_key)
         current_time = datetime.now(timezone.utc)
 
         if last_active and (current_time - last_active).total_seconds() > 3600:
-            context.chat_data["conversation"] = []
-            await update.message.reply_text("🕒 Chat history reset due to inactivity.")
+            context.chat_data[history_key] = []
+            await update.message.reply_text(
+                "🕒 Your chat history reset due to inactivity."
+            )
 
         # 3. Update history
-        context.chat_data["last_active"] = current_time
-        conversation = context.chat_data["conversation"]
+        context.chat_data[time_key] = current_time
+        conversation = context.chat_data[history_key]
 
         # Append ONLY the user message to history
         conversation.append({"role": "user", "content": user_text})
 
         # Limit history (keep last 20 messages to save tokens)
         if len(conversation) > 20:
-            context.chat_data["conversation"] = conversation[-20:]
-            conversation = context.chat_data["conversation"]
+            context.chat_data[history_key] = conversation[-20:]
+            conversation = context.chat_data[history_key]
 
         # 4. ASYNCHRONOUS API Call
         # We pass the SYSTEM_MESSAGE from config here.

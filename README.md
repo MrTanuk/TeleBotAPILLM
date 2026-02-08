@@ -115,14 +115,26 @@ poetry run python -m src.telegram_bot.main --mode webhook
 
 ## 🐳 Docker Deployment
 
-1. **Build the image:**
+### 1. Using Docker Compose (Recommended)
+This method handles volumes, environment variables, and resource limits automatically.
 
 ```bash
-docker buildx build -t telegram-ai-bot .
+# Build and start the bot in the background
+docker compose up -d --build
+
+# View logs in real-time
+docker compose logs -f
 ```
 
-2. **Run the container:**
+### 2. Using Dockerfile (Manual)
 
+**Build the image:**
+```bash
+docker build -t telegram-ai-bot .
+```
+
+**Run the container (Webhook Mode):**
+Use this for production or if you have a public URL/IP.
 ```bash
 docker run -d \
   --env-file .env \
@@ -131,15 +143,14 @@ docker run -d \
   telegram-ai-bot
 ```
 
-**If you use it on local before to deploy on production:**
-
+**Run for Local Development (Polling Mode):**
+Ideal for testing without configuring webhooks or ports.
 ```bash
 docker run --rm -it \
   --env-file .env \
   --name telebot-local \
   telegram-ai-bot \
   python -m src.telegram_bot.main --mode polling
-```
 
 ## 🤖 Commands
 
