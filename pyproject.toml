@@ -1,6 +1,6 @@
 [project]
-name = "telebotapillm"
-version = "0.1.0"
+name = "botgram-py"
+version = "0.2.0"
 description = ""
 package-mode = false
 authors = [
@@ -30,3 +30,21 @@ build-backend = "poetry.core.masonry.api"
 black = "^25.11.0"
 isort = "^7.0.0"
 
+[tool.black]
+line-length = 88
+target-version = ['py311']
+include = '\.pyi?$'
+exclude = '''
+/(
+    \.git
+  | \.venv
+  | \.env
+  | build
+  | dist
+)/
+'''
+
+[tool.isort]
+profile = "black"
+line_length = 88
+skip = [".venv", ".gitignore", ".env"]

@@ -57,8 +57,8 @@ This bot features concurrent processing for heavy tasks and seamless integration
 Clone the repository and install dependencies using Poetry:
 
 ```bash
-git clone https://github.com/MrTanuk/TeleBotAPILLM.git
-cd TeleBotAPILLM
+git clone https://github.com/MrTanuk/botgram-py.git
+cd botgram-py
 
 # Install dependencies
 poetry install
@@ -104,13 +104,13 @@ PORT=8080
 **Development Mode (Polling):**
 
 ```bash
-poetry run python -m src.telegram_bot.main
+poetry run python -m src.botgram_py.main
 ```
 
 **Production Mode / Webhook (Local):**
 
 ```bash
-poetry run python -m src.telegram_bot.main --mode webhook
+poetry run python -m src.botgram_py.main --mode webhook
 ```
 
 ## 🐳 Docker Deployment
@@ -150,7 +150,7 @@ docker run --rm -it \
   --env-file .env \
   --name telebot-local \
   telegram-ai-bot \
-  python -m src.telegram_bot.main --mode polling
+  python -m src.botgram_py.main --mode polling
 
 ## 🤖 Commands
 

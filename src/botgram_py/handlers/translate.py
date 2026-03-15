@@ -1,27 +1,31 @@
 import logging
+
 from telegram import Update, constants
 from telegram.ext import ContextTypes
-from ..services import llm_api
+
 from .. import config
+from ..services import llm_api
 
 logger = logging.getLogger(__name__)
 
 
-async def translate_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def translate_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """
     Handles translation commands: /es_en (Spanish->English) and /en_es (English->Spanish).
     Supports direct arguments or replies to messages.
     """
-    # Clean command (/es_en@BotName -> es_en)
-    command = update.message.text.split()[0].replace("/", "").split("@")[0]
+    if not update.message or not update.effective_chat:
+        return
 
+    command_text = update.message.text
+    if not command_text:
+        return
+
+    command = command_text.split()[0].replace("/", "").split("@")[0]
     text_to_translate = ""
 
-    # 1. Direct arguments (/es_en Hello)
     if context.args:
         text_to_translate = " ".join(context.args)
-
-    # 2. Reply to message (/es_en replying to someone)
     elif update.message.reply_to_message:
         original = update.message.reply_to_message
         text_to_translate = original.text or original.caption or ""
@@ -32,8 +36,10 @@ async def translate_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
 
-    # Define languages
-    lang_map = {"es_en": "Spanish to English", "en_es": "English to Spanish"}
+    lang_map: dict[str, str] = {
+        "es_en": "Spanish to English",
+        "en_es": "English to Spanish",
+    }
     direction = lang_map.get(command, "Spanish to English")
 
     await context.bot.send_chat_action(
@@ -48,13 +54,17 @@ async def translate_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     ]
 
     try:
-        # Asynchronous API Call
+        api_token = config.API_TOKEN or ""
+        api_url = config.API_URL
+        llm_model = config.LLM_MODEL or ""
+        provider = config.PROVIDER or ""
+
         translation = await llm_api.get_api_llm(
             messages,
-            config.API_TOKEN,
-            config.API_URL,
-            config.LLM_MODEL,
-            config.PROVIDER,
+            api_token,
+            api_url,
+            llm_model,
+            provider,
             MAX_OUTPUT_TOKENS=800,
         )
         await update.message.reply_text(translation)

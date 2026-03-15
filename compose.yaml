@@ -9,7 +9,7 @@ services:
     env_file:
       - .env
 
-    command: ["python", "-m", "src.telegram_bot.main", "--mode", "polling"]
+    command: ["python", "-m", "src.botgram_py.main", "--mode", "polling"]
 
     volumes:
       - ./src:/app/src
