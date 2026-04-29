@@ -7,7 +7,7 @@ from typing import Any
 
 import uvicorn
 from cachetools import TTLCache
-from fastapi import FastAPI, Request, Response
+from fastapi import FastAPI, Header, Request, Response
 from telegram import Update, BotCommand
 from telegram.ext import (
     Application,
@@ -65,9 +65,10 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         "• `/transcribe` — Convert audio to text (reply to any audio file).\n\n"
         
         "🌍 *Translation*\n"
-        "• `/es_en` — Translate Spanish to English.\n"
-        "• `/en_es` — Translate English to Spanish.\n"
-        "• _You can use these by replying to a message or by typing text after the command._\n\n"
+        "• `/translate [lang] [text]` — Translate to any language.\n"
+        "• _Supported codes:_ `es` `en` `fr` `it` `de` `pt` `ja` `zh` `ar` `ru`\n"
+        "• _Example:_ `/translate fr Hello, how are you?`\n"
+        "• _You can also reply to a message with `/translate [lang]`._\n\n"
         
         "👥 *Group Usage*\n"
         "To get my attention in groups, you must mention me:\n"
@@ -113,7 +114,7 @@ def register_handlers(application: Application) -> None:
     # 4. Translation
     application.add_handler(
         CommandHandler(
-            ["es_en", "en_es", "translate"],
+            "translate",
             translate.translate_command,
             filters=TARGETED_OR_PRIVATE,
         )
@@ -146,8 +147,7 @@ BOT_COMMANDS = [
     BotCommand("help", "Show all commands"),
     BotCommand("ask", "Ask anything to the AI (or reply to a message)"),
     BotCommand("transcribe", "Transcribe a voice note or audio replying it"),
-    BotCommand("es_en", "Translate from Spanish to English"),
-    BotCommand("en_es", "Translate from English to Spanish"),
+    BotCommand("translate", "Translate text: /translate [lang] [text]"),
     BotCommand("clear", "Clear chat history"),
     # BotCommand("dl", "Download video from URL"),
 ]
@@ -187,7 +187,10 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     if config.HOSTING == "production":
         webhook_url = f"{config.WEBHOOK_URL}/webhook"
         logger.info(f"Configuring Webhook at: {webhook_url}")
-        await ptb_app.bot.set_webhook(url=webhook_url)
+        await ptb_app.bot.set_webhook(
+            url=webhook_url,
+            secret_token=config.WEBHOOK_SECRET or None,
+        )
     else:
         await ptb_app.bot.delete_webhook()
 
@@ -214,7 +217,14 @@ async def health_check() -> dict[str, str]:
 
 
 @app.post("/webhook")
-async def telegram_webhook(request: Request) -> Response:
+async def telegram_webhook(
+    request: Request,
+    x_telegram_bot_api_secret_token: str | None = Header(None),
+) -> Response:
+    if config.WEBHOOK_SECRET and x_telegram_bot_api_secret_token != config.WEBHOOK_SECRET:
+        logger.warning("⚠️ Webhook request with invalid secret token rejected.")
+        return Response(status_code=403, content="Forbidden")
+
     ptb_bot: Application = request.app.state.ptb_bot
 
     data: dict[str, Any] = await request.json()

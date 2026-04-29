@@ -8,8 +8,11 @@ logger = logging.getLogger(__name__)
 
 MessageList = list[dict[str, Any]]
 
-# CONNECTION POOLING: Reusable global client
-http_client = httpx.AsyncClient(timeout=30.0)
+# CONNECTION POOLING: Reusable global client with explicit limits
+http_client = httpx.AsyncClient(
+    timeout=30.0,
+    limits=httpx.Limits(max_connections=20, max_keepalive_connections=10),
+)
 
 
 def is_missing_env(*args: Any) -> bool:
@@ -109,6 +112,19 @@ def _get_provider_config(
                 "reasoning_effort": "medium",
             },
         },
+        "nvidia": {
+            "headers": {
+                "Authorization": f"Bearer {api_token}",
+                "Content-Type": "application/json",
+            },
+            "data": {
+                "model": llm_model,
+                "messages": final_messages,
+                "max_tokens": max_tokens,
+                "temperature": 0.7,
+                "stream": False,
+            },
+        },
     }
 
     if provider.lower() not in configs:
@@ -121,7 +137,7 @@ def parse_response(response: dict[str, Any], provider: str) -> str:
     """It only handles extracting the useful text from the JSON response."""
     provider = provider.lower()
     try:
-        if provider in ("openai", "deepseek", "groq"):
+        if provider in ("openai", "deepseek", "groq", "nvidia"):
             content = response["choices"][0]["message"].get("content")
             if content and content.strip():
                 return content

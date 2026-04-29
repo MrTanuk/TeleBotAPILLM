@@ -15,9 +15,9 @@ async def handle_voice(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     if not update.message or not update.message.voice or not update.effective_chat:
         return
 
-    if not config.API_TOKEN:
+    if not config.GROQ_API_KEY:
         await update.message.reply_text(
-            "⚠️ Voice transcription is not configured (missing API Token)."
+            "⚠️ Voice transcription is not configured (missing GROQ_API_KEY)."
         )
         return
 
@@ -37,7 +37,7 @@ async def handle_voice(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         new_file = await context.bot.get_file(voice.file_id)
         file_byte_array = await new_file.download_as_bytearray()
 
-        transcribed_text = await transcribe(bytes(file_byte_array), config.API_TOKEN)
+        transcribed_text = await transcribe(bytes(file_byte_array), config.GROQ_API_KEY)
 
         if not transcribed_text:
             await update.message.reply_text("😓 I couldn't hear anything in the audio.")
@@ -61,7 +61,7 @@ async def transcribe_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
     if not update.message or not update.effective_chat:
         return
 
-    if not update.message or not update.message.reply_to_message:
+    if not update.message.reply_to_message:
         await update.message.reply_text("Please reply to a voice note or audio file with `/transcribe`.")
         return
 
@@ -79,8 +79,8 @@ async def transcribe_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
         return
 
     # Configuration check
-    if not config.API_TOKEN:
-        await update.message.reply_text("⚠️ Groq API Token is missing in configuration.")
+    if not config.GROQ_API_KEY:
+        await update.message.reply_text("⚠️ GROQ_API_KEY is missing in configuration.")
         return
 
     chat_id = update.effective_chat.id
@@ -93,7 +93,7 @@ async def transcribe_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
         file_byte_array = await new_file.download_as_bytearray()
 
         # Call Groq Service
-        transcribed_text = await transcribe(bytes(file_byte_array), config.API_TOKEN)
+        transcribed_text = await transcribe(bytes(file_byte_array), config.GROQ_API_KEY)
 
         if not transcribed_text:
             await status_msg.edit_text("😓 I couldn't extract any text from this audio.")

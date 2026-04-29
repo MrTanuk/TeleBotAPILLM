@@ -3,7 +3,7 @@
 ![Python](https://img.shields.io/badge/Python-3.11%2B-blue?logo=python)
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.109%2B-009688?logo=fastapi)
 ![Telegram](https://img.shields.io/badge/Telegram-Bot%20API-2CA5E0?logo=telegram)
-![Poetry](https://img.shields.io/badge/Poetry-Dependency%20Manager-blueviolet?logo=poetry)
+![uv](https://img.shields.io/badge/uv-Fast%20Python%20Manager-purple?logo=python)
 ![Docker](https://img.shields.io/badge/Docker-Ready-2496ED?logo=docker)
 
 A high-performance, asynchronous Telegram bot built with **FastAPI** and **Python-Telegram-Bot (v20+)**.
@@ -37,7 +37,7 @@ This bot features concurrent processing for heavy tasks and seamless integration
 
 - **Framework:** FastAPI + Uvicorn
 - **Bot Library:** python-telegram-bot (v20+ Async)
-- **Dependency Manager:** Poetry
+- **Dependency Manager:** uv
 - **HTTP Client:** HTTPX (Async)
 - **Media Processing:** yt-dlp, FFmpeg
 - **Audio AI:** Groq (Whisper-large-v3)
@@ -47,24 +47,24 @@ This bot features concurrent processing for heavy tasks and seamless integration
 ### Prerequisites
 
 - Python 3.11 or higher
-- [Poetry](https://python-poetry.org/) installed
+- [uv](https://docs.astral.sh/uv/) installed
 - FFmpeg installed on your system
 - A Telegram Bot Token
 - API Keys (LLM Provider + Groq)
 
 ### 1. Installation
 
-Clone the repository and install dependencies using Poetry:
+Clone the repository and install dependencies using `uv`:
 
 ```bash
 git clone https://github.com/MrTanuk/botgram-py.git
 cd botgram-py
 
-# Install dependencies
-poetry install
+# Install dependencies (creates .venv automatically)
+uv sync
 
-# Activate the virtual environment
-poetry env activate
+# (Optional) Activate the virtual environment manually
+source .venv/bin/activate
 ```
 
 ### 2. Configuration
@@ -104,13 +104,13 @@ PORT=8080
 **Development Mode (Polling):**
 
 ```bash
-poetry run python -m src.botgram_py.main
+uv run python -m src.botgram_py.main
 ```
 
 **Production Mode / Webhook (Local):**
 
 ```bash
-poetry run python -m src.botgram_py.main --mode webhook
+uv run python -m src.botgram_py.main --mode webhook
 ```
 
 ## 🐳 Docker Deployment
@@ -152,6 +152,8 @@ docker run --rm -it \
   telegram-ai-bot \
   python -m src.botgram_py.main --mode polling
 
+```
+
 ## 🤖 Commands
 
 | Command  | Usage             | Description                                      |
@@ -166,6 +168,8 @@ docker run --rm -it \
 | Voice    | _Send audio_      | Transcribes audio and sends it to AI.            |
 
 > **Note:** In groups, you can simply tag the bot to ask questions: `@MyBot How are you?`
+
+
 
 ## 📄 License
 

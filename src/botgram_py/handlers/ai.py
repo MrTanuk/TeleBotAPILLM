@@ -13,10 +13,31 @@ logger = logging.getLogger(__name__)
 
 # --- Helper Functions ---
 
+TELEGRAM_MAX_CHARS = constants.MessageLimit.MAX_TEXT_LENGTH  # 4096
+
 
 def get_user_keys(user_id: int) -> tuple[str, str]:
     """Generates unique keys for storage in chat_data based on the user’s ID."""
     return f"conversation_{user_id}", f"last_active_{user_id}"
+
+
+async def send_safe_reply(
+    update: Update, text: str, parse_mode: str | None = None
+) -> None:
+    """
+    Sends a reply splitting it into chunks if it exceeds Telegram's character limit.
+    Falls back to plain text if Markdown parsing fails.
+    """
+    chunks = [
+        text[i : i + TELEGRAM_MAX_CHARS]
+        for i in range(0, len(text), TELEGRAM_MAX_CHARS)
+    ]
+    for chunk in chunks:
+        try:
+            await update.message.reply_text(chunk, parse_mode=parse_mode)  # type: ignore[union-attr]
+        except BadRequest:
+            # Markdown parsing failed — retry as plain text
+            await update.message.reply_text(chunk)  # type: ignore[union-attr]
 
 
 async def clear_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -162,18 +183,7 @@ async def process_ai_interaction(
         )
 
         conversation.append({"role": "assistant", "content": ai_response})
-        await update.message.reply_text(ai_response, parse_mode="Markdown")
-
-    except BadRequest as e:
-        logger.warning(f"Markdown failed, sending plain text. Error: {e}")
-        try:
-            if ai_response:
-                await update.message.reply_text(ai_response)
-            else:
-                await update.message.reply_text("🚨 Received an empty response.")
-        except Exception as e2:
-            logger.error(f"Error sending the answer: {e2}")
-            await update.message.reply_text("🚨 Error sending the answer")
+        await send_safe_reply(update, ai_response, parse_mode="Markdown")
 
     except Exception as e:
         logger.error("Error in AI handler: %s", e, exc_info=True)

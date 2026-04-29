@@ -28,7 +28,10 @@ API_TOKEN = os.getenv("API_TOKEN")
 LLM_MODEL = os.getenv("LLM_MODEL")
 SYSTEM_MESSAGE = os.getenv("SYSTEM_MESSAGE")
 
-MAX_OUTPUT_TOKENS = int(os.getenv("MAX_OUTPUT_TOKENS", 700))
+# --- Audio / Transcription ---
+GROQ_API_KEY = os.getenv("GROQ_API_KEY") or os.getenv("API_TOKEN", "")
+
+MAX_OUTPUT_TOKENS = int(os.getenv("MAX_OUTPUT_TOKENS", 1024))
 _BASE_API_URL = os.getenv("API_URL")
 
 API_URL = ""
@@ -41,6 +44,8 @@ else:
 
 # --- Webhook & Hosting Configuration ---
 WEBHOOK_URL = os.getenv("WEBHOOK_URL")
+# Optional secret to validate that webhook requests originate from Telegram.
+WEBHOOK_SECRET = os.getenv("WEBHOOK_SECRET", "")
 
 PORT = int(os.environ.get("PORT", 8080))
 
